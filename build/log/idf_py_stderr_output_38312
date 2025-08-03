@@ -1,0 +1,6 @@
+Command list: dfu-util;-d;303a:2;-D;D:/Documents/test/esp32/usbhid/build/dfu.bin
+No DFU capable USB device available
+CMake Error at D:/Espressif/frameworks/esp-idf-v5.3.1/tools/cmake/run_dfu_util.cmake:27 (message):
+  dfu-util failed
+
+
