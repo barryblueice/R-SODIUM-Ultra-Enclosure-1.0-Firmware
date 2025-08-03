@@ -1,6 +1,7 @@
 ## **R-SODIUM-Ultra-Enclosure-1.0-Firmware**
 
 适用于第一代R-SODIUM Ultra Enclosure硬盘盒的控制单元固件。
+> 警告：仅适用第一代ESP32版本，第一代8051版本不再提供任何技术支持。
 
 开发环境：
  - ESP-IDF
