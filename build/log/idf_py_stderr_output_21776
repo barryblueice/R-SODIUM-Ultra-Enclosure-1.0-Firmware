@@ -1,0 +1,2 @@
+Command list: dfu-util;-d;303a:2;-D;D:/Documents/test/esp32/usbhid/build/dfu.bin
+error detaching
