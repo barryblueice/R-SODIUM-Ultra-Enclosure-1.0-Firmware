@@ -9,6 +9,7 @@
 #include "tinyusb.h"
 #include "mbedtls/md.h"
 #include "class/hid/hid_device.h"
+#include <unistd.h>
 
 static const char *TAG = "R-SODIUM Controller";
 #define REPORT_SIZE 64
@@ -16,20 +17,28 @@ static const char *TAG = "R-SODIUM Controller";
 // #define LED_GPIO GPIO_NUM_1 // GPIO1
 // #define LED_GPIO_MASK ((1ULL << GPIO_NUM_1) | (1ULL << GPIO_NUM_2) | (1ULL << GPIO_NUM_3) | (1ULL << GPIO_NUM_4))
 // #define PWR_GPIO_MASK ((1ULL << GPIO_NUM_5) | (1ULL << GPIO_NUM_6))
-#define SWITCH_GPIO_MASK ((1ULL << GPIO_NUM_21) | (1ULL << GPIO_NUM_33) | (1ULL << GPIO_NUM_34) | (1ULL << GPIO_NUM_35) | (1ULL << GPIO_NUM_38))
+#define SWITCH_GPIO_MASK ((1ULL << GPIO_NUM_21) | (1ULL << GPIO_NUM_33) | (1ULL << GPIO_NUM_34) | (1ULL << GPIO_NUM_35) | (1ULL << GPIO_NUM_36)  | (1ULL << GPIO_NUM_37)  | (1ULL << GPIO_NUM_38))
 #define PWR_GPIO_MASK ((1ULL << GPIO_NUM_1))
 
 static volatile bool gpio_int_flag = false;
 
-static void IRAM_ATTR gpio_isr_handler(void* arg) {
-    gpio_int_flag = true;
-    portYIELD_FROM_ISR();
-}
+// static void IRAM_ATTR gpio_isr_handler(void* arg) {
+//     gpio_int_flag = true;
+//     portYIELD_FROM_ISR();
+// }
 
 
 // HID 报告描述符
 const uint8_t hid_report_descriptor[] = {
     TUD_HID_REPORT_DESC_GENERIC_INOUT(REPORT_SIZE)
+};
+
+const char* hid_string_descriptor[5] = {
+    (char[]){0x09, 0x04},
+    "R-SODIUM Technology",
+    "Ultra SSD Enclosure Controller",
+    "0D00072100000000",
+    "R-SODIUM HID Controller",
 };
 
 // 配置描述符
@@ -54,7 +63,6 @@ uint16_t tud_hid_get_report_cb(uint8_t instance,
     return 0;
 }
 
-
 static void send_hid_response(uint8_t command, const uint8_t *payload, size_t payload_len) {
     uint8_t report[REPORT_SIZE] = {0};
     uint8_t mac[32];
@@ -77,11 +85,32 @@ static void send_hid_response(uint8_t command, const uint8_t *payload, size_t pa
     ESP_LOGI(TAG, "Sent response for cmd 0x%02X", command);
 }
 
+
+
 void init_nvs() {
     esp_err_t err = nvs_flash_init();
     if (err == ESP_ERR_NVS_NO_FREE_PAGES || err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
         nvs_flash_erase();
         nvs_flash_init();
+    }
+}
+
+uint8_t get_nvs_state(uint8_t gpio_num, const char *prefix) {
+    nvs_handle_t nvs_handle;
+    uint8_t value = 0;
+    char key[16];
+    snprintf(key, sizeof(key), "%s_%d",prefix , gpio_num);
+
+    esp_err_t ret = nvs_open("storage", NVS_READONLY, &nvs_handle);
+    if (ret == ESP_OK) {
+        if (nvs_get_u8(nvs_handle, key, &value) == ESP_OK) {
+            return value;
+        } else {
+            return 0; // 如果没有保存的状态，返回默认值0
+        }
+        nvs_close(nvs_handle);
+    } else {
+        return 0; // 如果 NVS 打开失败，返回默认值0
     }
 }
 
@@ -120,17 +149,14 @@ uint8_t enclosure_mode_selected() {
     esp_err_t ret = nvs_open("storage", NVS_READONLY, &nvs_handle);
     if (ret == ESP_OK) {
         if (nvs_get_u8(nvs_handle, key, &value) == ESP_OK) {
-            ESP_LOGI(TAG, "Return Enclosure state: %d", value);
             return value;
         } else {
-            save_state(0x00, 0, "enclosure_mode"); // 确保在 NVS 中保存默认状态
-            ESP_LOGI(TAG, "Default Enclosure state saved");
+            save_state(0x00, 0, "enclosure_mode");
             return 0x00;
         }
         nvs_close(nvs_handle);
     } else {
-        save_state(0x00, 0, "enclosure_mode"); // 确保在 NVS 中保存默认状态
-        ESP_LOGI(TAG, "Default Enclosure state saved");
+        save_state(0x00, 0, "enclosure_mode");
         return 0x00;
     }
 }
@@ -144,6 +170,13 @@ void restore_gpio_state(uint8_t gpio_num) {
     esp_err_t ret = nvs_open("storage", NVS_READONLY, &nvs_handle);
     if (ret == ESP_OK) {
         if (nvs_get_u8(nvs_handle, key, &value) == ESP_OK) {
+            if (value == 1) {
+                if (gpio_num == 0x22 || gpio_num == 0x26) {
+                    uint8_t sata_onpower = get_nvs_state(0x00, "sata_onpower");
+                    ESP_LOGI(TAG, "Waiting %d second/s for GPIO %d power-up", sata_onpower, gpio_num);
+                    sleep(sata_onpower);
+                }
+            }
             gpio_set_level(gpio_num, value);
             ESP_LOGI(TAG, "Restored GPIO %d to value: %d", gpio_num, value);
         } else {
@@ -170,6 +203,13 @@ void ext_restore_gpio_state(uint8_t gpio_num) {
     esp_err_t ret = nvs_open("storage", NVS_READONLY, &nvs_handle);
     if (ret == ESP_OK) {
         if (nvs_get_u8(nvs_handle, key, &value) == ESP_OK) {
+            if (value == 1) {
+                if (gpio_num == 0x22 || gpio_num == 0x26) {
+                    uint8_t sata_onpower = get_nvs_state(0x00, "sata_onpower");
+                    ESP_LOGI(TAG, "Waiting %d second/s for EXT-GPIO %d power-up", sata_onpower, gpio_num);
+                    sleep(sata_onpower);
+                }
+            }
             gpio_set_level(gpio_num, value);
             ESP_LOGI(TAG, "Restored GPIO %d to value when ext-powered: %d", gpio_num, value);
         } else {
@@ -184,25 +224,6 @@ void ext_restore_gpio_state(uint8_t gpio_num) {
         ESP_LOGE(TAG, "NVS open failed (0x%x): GPIO when ext-powered %d set to 0", ret, gpio_num);
         save_state(gpio_num, 0, "gpio"); // 确保在 NVS 中保存默认状态
         ESP_LOGI(TAG, "Default state saved for GPIO when ext-powered: %d", gpio_num);
-    }
-}
-
-uint8_t get_nvs_gpio_state(uint8_t gpio_num) {
-    nvs_handle_t nvs_handle;
-    uint8_t value = 0;
-    char key[16];
-    snprintf(key, sizeof(key), "gpio_%d", gpio_num);
-
-    esp_err_t ret = nvs_open("storage", NVS_READONLY, &nvs_handle);
-    if (ret == ESP_OK) {
-        if (nvs_get_u8(nvs_handle, key, &value) == ESP_OK) {
-            return value;
-        } else {
-            return 0; // 如果没有保存的状态，返回默认值0
-        }
-        nvs_close(nvs_handle);
-    } else {
-        return 0; // 如果 NVS 打开失败，返回默认值0
     }
 }
 
@@ -235,7 +256,7 @@ static void process_command(uint8_t cmd, const uint8_t *data) {
             break;
         case 0x02:
             // 查询NVS存储的GPIO状态
-            uint8_t value = get_nvs_gpio_state(cmd);
+            uint8_t value = get_nvs_state(cmd, "gpio");
             const char *saved_response = value ? "HIGH" : "LOW";
             send_hid_response(data[0], (const uint8_t *)saved_response, strlen(saved_response));
             break;
@@ -247,7 +268,7 @@ static void process_command(uint8_t cmd, const uint8_t *data) {
             send_hid_response(data[0], (const uint8_t *)response, strlen(response));
             break;
         case 0x04:
-            // 查询NVS存储状态
+            // 查询NVS存储的硬盘盒状态
             uint8_t enclosure_status = enclosure_mode_selected(data[2]);
             send_hid_response(data[0], &enclosure_status, 1);
             break;
@@ -258,8 +279,45 @@ static void process_command(uint8_t cmd, const uint8_t *data) {
             break;
         case 0x06:
             // 存储高电平时的GPIO状态
-            save_state(data[3], cmd, "ext_gpio");
+            save_state(cmd, data[3], "ext_gpio");
             send_hid_response(data[0], (const uint8_t *)"OK", 2);
+            break;
+        case 0x07:
+            // 查询NVS存储的EXT GPIO状态
+            uint8_t ext_value = get_nvs_state(cmd, "ext_gpio");
+            const char *ext_saved_response = ext_value ? "HIGH" : "LOW";
+            send_hid_response(data[0], (const uint8_t *)ext_saved_response, strlen(ext_saved_response));
+            break;
+        case 0x08:
+            save_state(0x00, cmd, "sata_onpower");
+            send_hid_response(data[0], (const uint8_t *)"OK", 2);
+            break;
+        case 0x09:
+            uint8_t sata_onpower_time = get_nvs_state(cmd, "sata_onpower");
+            send_hid_response(data[0], &sata_onpower_time, 1);
+            break;
+        case 0xFD:
+            // 应用全GPIO
+            uint8_t enclosure_state = enclosure_mode_selected();
+            if (enclosure_state == 0x00) {
+                if (gpio_get_level(GPIO_NUM_1) == 1) {
+                    ext_restore_gpio_state(GPIO_NUM_33);
+                    ext_restore_gpio_state(GPIO_NUM_34);
+                    ext_restore_gpio_state(GPIO_NUM_35);
+                    ext_restore_gpio_state(GPIO_NUM_38);
+                } else {
+                    restore_gpio_state(GPIO_NUM_33);
+                    restore_gpio_state(GPIO_NUM_34);
+                    restore_gpio_state(GPIO_NUM_35);
+                    restore_gpio_state(GPIO_NUM_38);
+                }
+            } else {
+                restore_gpio_state(GPIO_NUM_33);
+                restore_gpio_state(GPIO_NUM_34);
+                restore_gpio_state(GPIO_NUM_35);
+                restore_gpio_state(GPIO_NUM_38);
+            }
+            ESP_LOGI(TAG, "Applied all GPIO");
             break;
         default:
             // 未知指令
@@ -303,33 +361,33 @@ void tud_hid_set_report_cb(uint8_t instance,
 
 }
 
-static void ext_power_monitor_task(void* arg) {
-    while (1) {
-        uint8_t enclosure_state = enclosure_mode_selected();
-        if (enclosure_state == 0x00) {
-            if (gpio_int_flag) {
-                int level = gpio_get_level(GPIO_NUM_1);
-                vTaskDelay(pdMS_TO_TICKS(50));
-                if (gpio_get_level(GPIO_NUM_1) == level) {
-                    ESP_LOGI(TAG, "GPIO[%d] LEVEL: %d", GPIO_NUM_1, level);
-                    if (level == 1) {
-                        ext_restore_gpio_state(GPIO_NUM_33);
-                        ext_restore_gpio_state(GPIO_NUM_34);
-                        ext_restore_gpio_state(GPIO_NUM_35);
-                        ext_restore_gpio_state(GPIO_NUM_38);
-                    } else {
-                        restore_gpio_state(GPIO_NUM_33);
-                        restore_gpio_state(GPIO_NUM_34);
-                        restore_gpio_state(GPIO_NUM_35);
-                        restore_gpio_state(GPIO_NUM_38);
-                    }
-                }
-                gpio_int_flag = false;
-            }
-        }
-        vTaskDelay(pdMS_TO_TICKS(10));
-    }
-}
+// static void ext_power_monitor_task(void* arg) {
+//     while (1) {
+//         uint8_t enclosure_state = enclosure_mode_selected();
+//         if (enclosure_state == 0x00) {
+//             if (gpio_int_flag) {
+//                 int level = gpio_get_level(GPIO_NUM_1);
+//                 vTaskDelay(pdMS_TO_TICKS(50));
+//                 if (gpio_get_level(GPIO_NUM_1) == level) {
+//                     ESP_LOGI(TAG, "GPIO[%d] LEVEL: %d", GPIO_NUM_1, level);
+//                     if (level == 1) {
+//                         ext_restore_gpio_state(GPIO_NUM_33);
+//                         ext_restore_gpio_state(GPIO_NUM_34);
+//                         ext_restore_gpio_state(GPIO_NUM_35);
+//                         ext_restore_gpio_state(GPIO_NUM_38);
+//                     } else {
+//                         restore_gpio_state(GPIO_NUM_33);
+//                         restore_gpio_state(GPIO_NUM_34);
+//                         restore_gpio_state(GPIO_NUM_35);
+//                         restore_gpio_state(GPIO_NUM_38);
+//                     }
+//                 }
+//                 gpio_int_flag = false;
+//             }
+//         }
+//         vTaskDelay(pdMS_TO_TICKS(10));
+//     }
+// }
 
 void clear_nvs_all() {
     esp_err_t err;
@@ -376,7 +434,17 @@ void app_main(void) {
     uint8_t enclosure_state = enclosure_mode_selected();
 
     if (enclosure_state == 0x00) {
-        
+        if (gpio_get_level(GPIO_NUM_1) == 1) {
+            ext_restore_gpio_state(GPIO_NUM_33);
+            ext_restore_gpio_state(GPIO_NUM_34);
+            ext_restore_gpio_state(GPIO_NUM_35);
+            ext_restore_gpio_state(GPIO_NUM_38);
+        } else {
+            restore_gpio_state(GPIO_NUM_33);
+            restore_gpio_state(GPIO_NUM_34);
+            restore_gpio_state(GPIO_NUM_35);
+            restore_gpio_state(GPIO_NUM_38);
+        }
     } else {
 
         restore_gpio_state(GPIO_NUM_33);
@@ -385,15 +453,19 @@ void app_main(void) {
         restore_gpio_state(GPIO_NUM_38);
     }
 
+    restore_gpio_state(GPIO_NUM_36);
+    restore_gpio_state(GPIO_NUM_37);
+
     // clear_nvs_all();
-    gpio_install_isr_service(0);
-    gpio_isr_handler_add(GPIO_NUM_1, gpio_isr_handler, (void*)GPIO_NUM_1);
-    xTaskCreate(ext_power_monitor_task, "ext_pwr_monitor", 2048, NULL, 5, NULL);
+    // gpio_install_isr_service(0);
+    // gpio_isr_handler_add(GPIO_NUM_1, gpio_isr_handler, (void*)GPIO_NUM_1);
+    // xTaskCreate(ext_power_monitor_task, "ext_pwr_monitor", 2048, NULL, 5, NULL);
 
     const tinyusb_config_t tusb_cfg = {
         .device_descriptor = NULL,
+        .string_descriptor = hid_string_descriptor,
+        .string_descriptor_count = sizeof(hid_string_descriptor) / sizeof(hid_string_descriptor[0]),
         .configuration_descriptor = hid_configuration_descriptor,
-        .string_descriptor = NULL,
         .external_phy = false,
     };
     ESP_ERROR_CHECK(tinyusb_driver_install(&tusb_cfg));
