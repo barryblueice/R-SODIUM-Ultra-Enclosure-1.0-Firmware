@@ -74,7 +74,13 @@ static void send_hid_response(uint8_t command, const uint8_t *payload, size_t pa
     ESP_LOGD(TAG, "Sent response for cmd 0x%02X", command);
 }
 
+static void send_empty_response(void) {
 
+    uint8_t report[REPORT_SIZE];
+    memset(report, 0xFF, REPORT_SIZE);
+    tud_hid_report(0, report, REPORT_SIZE);
+    ESP_LOGD(TAG, "Sent HID report filled with 0xFF");
+}
 
 void init_nvs() {
     esp_err_t err = nvs_flash_init();
@@ -419,9 +425,9 @@ void clear_nvs_all() {
 
 void hid_alive_task(void *pvParameters) {
     while (1) {
-        send_hid_response(0xFF, (const uint8_t *)"I WILL SURVIVE", 14);
+        send_empty_response();
         ESP_LOGD(TAG,"HID ALIVE");
-        vTaskDelay(pdMS_TO_TICKS(1000));
+        vTaskDelay(pdMS_TO_TICKS(2000));
     }
 }
 
