@@ -1,29 +1,0 @@
-dfu-util 0.11
-
-Copyright 2005-2009 Weston Schmidt, Harald Welte and OpenMoko Inc.
-Copyright 2010-2021 Tormod Volden and Stefan Schmidt
-This program is Free Software and has ABSOLUTELY NO WARRANTY
-Please report bugs to http://sourceforge.net/p/dfu-util/tickets/
-
-Opening DFU capable USB device...
-Device ID 303a:0002
-Run-Time device DFU version 0110
-Claiming USB DFU (Run-Time) Interface...
-Setting Alternate Interface zero...
-Determining device status...
-DFU state(0) = appIDLE, status(0) = No error condition is present
-Device really in Run-Time Mode, send DFU detach request...
-Device will detach and reattach...
-Opening DFU USB Device...
-Claiming USB DFU Interface...
-Setting Alternate Interface #0 ...
-Determining device status...
-DFU state(2) = dfuIDLE, status(0) = No error condition is present
-DFU mode device DFU version 0110
-Device returned transfer size 64
-Copying data from PC to DFU device
-Download	[                         ]   0%            0 bytesDownload	[=                        ]   4%        11072 bytesDownload	[==                       ]   8%        22144 bytesDownload	[==                       ]   9%        26368 bytesDownload	[===                      ]  12%        33216 bytesDownload	[====                     ]  16%        44288 bytesDownload	[=====                    ]  20%        55360 bytesDownload	[======                   ]  24%        66432 bytesDownload	[======                   ]  25%        69376 bytesDownload	[=======                  ]  28%        77440 bytesDownload	[========                 ]  32%        88512 bytesDownload	[=========                ]  36%        99584 bytesDownload	[==========               ]  40%       110656 bytesDownload	[===========              ]  44%       121728 bytesDownload	[============             ]  48%       132800 bytesDownload	[=============            ]  52%       143808 bytesDownload	[=============            ]  54%       150208 bytesDownload	[==============           ]  56%       154880 bytesDownload	[===============          ]  60%       165952 bytesDownload	[================         ]  64%       177024 bytesDownload	[=================        ]  68%       188096 bytesDownload	[==================       ]  72%       199168 bytesDownload	[===================      ]  76%       210176 bytesDownload	[====================     ]  80%       221248 bytesDownload	[====================     ]  83%       231168 bytesDownload	[=====================    ]  84%       232320 bytesDownload	[======================   ]  88%       243392 bytesDownload	[=======================  ]  92%       254464 bytesDownload	[======================== ]  96%       265536 bytesDownload	[=========================] 100%       276480 bytes
-Download done.
-DFU state(2) = dfuIDLE, status(0) = No error condition is present
-Done!
-[0/1] cmd.exe /C "cd /D D:\Documents\test\esp32\usbhid\build && D:\Espressif\tools\cmake\3.24.0\bin\cmake.exe -D ESP_DFU_BIN="D:/Documents/test/esp32/usbhid/build/dfu.bin" -D ESP_DFU_PID="2" -P D:/Espressif/frameworks/esp-idf-v5.3.1/tools/cmake/run_dfu_util.cmake"

@@ -1,9 +1,0 @@
-[1/4] Performing build step for 'bootloader'
-[1/1] cmd.exe /C "cd /D D:\Documents\test\esp32\usbhid\build\bootloader\esp-idf\esptool_py && D:\Espressif\python_env\idf5.3_py3.11_env\Scripts\python.exe D:/Espressif/frameworks/esp-idf-v5.3.1/components/partition_table/check_sizes.py --offset 0x8000 bootloader 0x1000 D:/Documents/test/esp32/usbhid/build/bootloader/bootloader.bin"
-Bootloader binary size 0x5600 bytes. 0x1a00 bytes (23%) free.
-[1/2] cmd.exe /C "cd /D D:\Documents\test\esp32\usbhid\build && D:\EAdding flash chip parameters file with flash_size = 2MB
-Adding bootloader\bootloader.bin at 0x1000
-Adding partition_table\partition-table.bin at 0x8000
-Adding usbhid.bin at 0x10000
-"D:/Documents/test/esp32/usbhid/build/dfu.bin" has been written. You may proceed with DFU flashing.
-spressif\python_env\idf5.3_py3.11_env\Scripts\python.exe D:/Espressif/frameworks/esp-idf-v5.3.1/tools/mkdfu.py write -o D:/Documents/test/esp32/usbhid/build/dfu.bin --json D:/Documents/test/esp32/usbhid/build/flasher_args.json --pid 2 --flash-size 2MB"
