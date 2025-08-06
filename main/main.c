@@ -71,7 +71,7 @@ static void send_hid_response(uint8_t command, const uint8_t *payload, size_t pa
     memcpy(report + 32, mac, 32);
     tud_hid_report(0, report, REPORT_SIZE);
 
-    ESP_LOGI(TAG, "Sent response for cmd 0x%02X", command);
+    ESP_LOGD(TAG, "Sent response for cmd 0x%02X", command);
 }
 
 
