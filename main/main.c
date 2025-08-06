@@ -14,21 +14,10 @@
 static const char *TAG = "R-SODIUM Controller";
 #define REPORT_SIZE 64
 #define HMAC_KEY    "a0HyIvVM6A6Z7dTPYrAk8s3Mpouh"
-// #define LED_GPIO GPIO_NUM_1 // GPIO1
-// #define LED_GPIO_MASK ((1ULL << GPIO_NUM_1) | (1ULL << GPIO_NUM_2) | (1ULL << GPIO_NUM_3) | (1ULL << GPIO_NUM_4))
-// #define PWR_GPIO_MASK ((1ULL << GPIO_NUM_5) | (1ULL << GPIO_NUM_6))
 #define SWITCH_GPIO_MASK ((1ULL << GPIO_NUM_21) | (1ULL << GPIO_NUM_33) | (1ULL << GPIO_NUM_34) | (1ULL << GPIO_NUM_35) | (1ULL << GPIO_NUM_36)  | (1ULL << GPIO_NUM_37)  | (1ULL << GPIO_NUM_38))
 #define PWR_GPIO_MASK ((1ULL << GPIO_NUM_1))
 
 static volatile bool gpio_int_flag = false;
-
-// static void IRAM_ATTR gpio_isr_handler(void* arg) {
-//     gpio_int_flag = true;
-//     portYIELD_FROM_ISR();
-// }
-
-
-// HID 报告描述符
 const uint8_t hid_report_descriptor[] = {
     TUD_HID_REPORT_DESC_GENERIC_INOUT(REPORT_SIZE)
 };
@@ -106,11 +95,11 @@ uint8_t get_nvs_state(uint8_t gpio_num, const char *prefix) {
         if (nvs_get_u8(nvs_handle, key, &value) == ESP_OK) {
             return value;
         } else {
-            return 0; // 如果没有保存的状态，返回默认值0
+            return 0;
         }
         nvs_close(nvs_handle);
     } else {
-        return 0; // 如果 NVS 打开失败，返回默认值0
+        return 0;
     }
 }
 
@@ -127,18 +116,6 @@ void save_state(uint8_t gpio_num, uint8_t value, const char *prefix) {
         nvs_close(nvs_handle);
     }
 }
-
-// void nvs_save(char _type, uint8_t value) {
-//     nvs_handle_t nvs_handle;
-//     char key[16];
-//     snprintf(key, sizeof(key), "%c", _type);
-
-//     if (nvs_open("storage", NVS_READWRITE, &nvs_handle) == ESP_OK) {
-//         nvs_set_u8(nvs_handle, key, value);
-//         nvs_commit(nvs_handle);
-//         nvs_close(nvs_handle);
-//     }
-// }
 
 uint8_t enclosure_mode_selected() {
     nvs_handle_t nvs_handle;
@@ -252,7 +229,6 @@ static void process_command(uint8_t cmd, const uint8_t *data) {
                 save_state(cmd, 0, "gpio");
                 // ESP_LOGI(TAG, "NVS save %d: 0", cmd);
             }
-            
             break;
         case 0x02:
             // 查询NVS存储的GPIO状态
@@ -289,12 +265,24 @@ static void process_command(uint8_t cmd, const uint8_t *data) {
             send_hid_response(data[0], (const uint8_t *)ext_saved_response, strlen(ext_saved_response));
             break;
         case 0x08:
+            // 存储SATA上电时间
             save_state(0x00, cmd, "sata_onpower");
             send_hid_response(data[0], (const uint8_t *)"OK", 2);
             break;
         case 0x09:
+            // 向主机端返回SATA上电时间
             uint8_t sata_onpower_time = get_nvs_state(cmd, "sata_onpower");
             send_hid_response(data[0], &sata_onpower_time, 1);
+            break;
+        case 0x0A:
+            // 是否开启主机端休眠
+            save_state(0x00, cmd, "suspend_enable");
+            send_hid_response(data[0], (const uint8_t *)"OK", 2);
+            break;
+        case 0x0B:
+            // 向主机端返回主机端休眠状态
+            uint8_t suspend_enable = get_nvs_state(cmd, "suspend_enable");
+            send_hid_response(data[0], &suspend_enable, 1);
             break;
         case 0xFD:
             // 应用全GPIO
@@ -361,33 +349,50 @@ void tud_hid_set_report_cb(uint8_t instance,
 
 }
 
-// static void ext_power_monitor_task(void* arg) {
-//     while (1) {
-//         uint8_t enclosure_state = enclosure_mode_selected();
-//         if (enclosure_state == 0x00) {
-//             if (gpio_int_flag) {
-//                 int level = gpio_get_level(GPIO_NUM_1);
-//                 vTaskDelay(pdMS_TO_TICKS(50));
-//                 if (gpio_get_level(GPIO_NUM_1) == level) {
-//                     ESP_LOGI(TAG, "GPIO[%d] LEVEL: %d", GPIO_NUM_1, level);
-//                     if (level == 1) {
-//                         ext_restore_gpio_state(GPIO_NUM_33);
-//                         ext_restore_gpio_state(GPIO_NUM_34);
-//                         ext_restore_gpio_state(GPIO_NUM_35);
-//                         ext_restore_gpio_state(GPIO_NUM_38);
-//                     } else {
-//                         restore_gpio_state(GPIO_NUM_33);
-//                         restore_gpio_state(GPIO_NUM_34);
-//                         restore_gpio_state(GPIO_NUM_35);
-//                         restore_gpio_state(GPIO_NUM_38);
-//                     }
-//                 }
-//                 gpio_int_flag = false;
-//             }
-//         }
-//         vTaskDelay(pdMS_TO_TICKS(10));
-//     }
-// }
+void tud_suspend_cb(void)
+{
+    uint8_t suspend_enable = get_nvs_state(0x00, "suspend_enable");
+    if (suspend_enable == 0x00) {
+        gpio_set_level(GPIO_NUM_33,0);
+        gpio_set_level(GPIO_NUM_34,0);
+        gpio_set_level(GPIO_NUM_35,0);
+        gpio_set_level(GPIO_NUM_38,0);
+        ESP_LOGI("USB", "Host suspended， disable all GPIO");
+    }
+}
+
+void tud_resume_cb(void) {
+
+    uint8_t suspend_enable = get_nvs_state(0x00, "suspend_enable");
+
+    if (suspend_enable != 0x00) {
+
+        uint8_t enclosure_state = enclosure_mode_selected();
+    
+        if (enclosure_state == 0x00) {
+            if (gpio_get_level(GPIO_NUM_1) == 1) {
+                ext_restore_gpio_state(GPIO_NUM_33);
+                ext_restore_gpio_state(GPIO_NUM_34);
+                ext_restore_gpio_state(GPIO_NUM_35);
+                ext_restore_gpio_state(GPIO_NUM_38);
+            } else {
+                restore_gpio_state(GPIO_NUM_33);
+                restore_gpio_state(GPIO_NUM_34);
+                restore_gpio_state(GPIO_NUM_35);
+                restore_gpio_state(GPIO_NUM_38);
+            }
+        } else {
+            restore_gpio_state(GPIO_NUM_33);
+            restore_gpio_state(GPIO_NUM_34);
+            restore_gpio_state(GPIO_NUM_35);
+            restore_gpio_state(GPIO_NUM_38);
+        }
+        restore_gpio_state(GPIO_NUM_36);
+        restore_gpio_state(GPIO_NUM_37);
+        ESP_LOGI(TAG, "Host resumed, restore GPIO state");
+
+    }
+}
 
 void clear_nvs_all() {
     esp_err_t err;
@@ -457,9 +462,6 @@ void app_main(void) {
     restore_gpio_state(GPIO_NUM_37);
 
     // clear_nvs_all();
-    // gpio_install_isr_service(0);
-    // gpio_isr_handler_add(GPIO_NUM_1, gpio_isr_handler, (void*)GPIO_NUM_1);
-    // xTaskCreate(ext_power_monitor_task, "ext_pwr_monitor", 2048, NULL, 5, NULL);
 
     const tinyusb_config_t tusb_cfg = {
         .device_descriptor = NULL,
