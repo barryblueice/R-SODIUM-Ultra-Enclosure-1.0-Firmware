@@ -420,7 +420,7 @@ void clear_nvs_all() {
 void hid_alive_task(void *pvParameters) {
     while (1) {
         send_hid_response(0xFF, (const uint8_t *)"I WILL SURVIVE", 14);
-        ESP_LOGW(TAG,"HID ALIVE");
+        ESP_LOGD(TAG,"HID ALIVE");
         vTaskDelay(pdMS_TO_TICKS(1000));
     }
 }
