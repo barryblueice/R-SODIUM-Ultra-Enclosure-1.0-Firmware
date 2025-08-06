@@ -204,6 +204,31 @@ void ext_restore_gpio_state(uint8_t gpio_num) {
     }
 }
 
+void restore_state(void) {
+    uint8_t enclosure_state = enclosure_mode_selected();
+
+    if (enclosure_state == 0x00) {
+        if (gpio_get_level(GPIO_NUM_1) == 1) {
+            ext_restore_gpio_state(GPIO_NUM_33);
+            ext_restore_gpio_state(GPIO_NUM_34);
+            ext_restore_gpio_state(GPIO_NUM_35);
+            ext_restore_gpio_state(GPIO_NUM_38);
+        } else {
+            restore_gpio_state(GPIO_NUM_33);
+            restore_gpio_state(GPIO_NUM_34);
+            restore_gpio_state(GPIO_NUM_35);
+            restore_gpio_state(GPIO_NUM_38);
+        }
+    } else {
+        restore_gpio_state(GPIO_NUM_33);
+        restore_gpio_state(GPIO_NUM_34);
+        restore_gpio_state(GPIO_NUM_35);
+        restore_gpio_state(GPIO_NUM_38);
+    }
+    restore_gpio_state(GPIO_NUM_36);
+    restore_gpio_state(GPIO_NUM_37);
+}
+
 static void process_command(uint8_t cmd, const uint8_t *data) {
     // ESP_LOGI(TAG, "Received cmd 0x%02X", cmd);
     ESP_LOGI(TAG, "Original data: %d %02X %02X %02X %02X", cmd, data[0], data[1], data[2], data[3]);
@@ -276,35 +301,29 @@ static void process_command(uint8_t cmd, const uint8_t *data) {
             break;
         case 0x0A:
             // 是否开启主机端休眠
-            save_state(0x00, cmd, "suspend_enable");
+            save_state(0x00, cmd, "susp_en");
             send_hid_response(data[0], (const uint8_t *)"OK", 2);
             break;
         case 0x0B:
             // 向主机端返回主机端休眠状态
-            uint8_t suspend_enable = get_nvs_state(cmd, "suspend_enable");
-            send_hid_response(data[0], &suspend_enable, 1);
+            uint8_t suspend_value = get_nvs_state(cmd, "susp_en");
+            const char *suspend_enable = suspend_value ? "HIGH" : "LOW";
+            send_hid_response(data[0], (const uint8_t *)suspend_enable, strlen(suspend_enable));
+            break;
+        case 0x0C:
+            // 是否开启卸载休眠
+            save_state(0x00, cmd, "ususp_en");
+            send_hid_response(data[0], (const uint8_t *)"OK", 2);
+            break;
+        case 0x0D:
+            // 向主机端返回卸载休眠状态
+            uint8_t umounted_suspend_value = get_nvs_state(0x00, "ususp_en");
+            const char *umounted_suspend_enable = umounted_suspend_value ? "HIGH" : "LOW";
+            send_hid_response(data[0], (const uint8_t *)umounted_suspend_enable, strlen(umounted_suspend_enable));
             break;
         case 0xFD:
             // 应用全GPIO
-            uint8_t enclosure_state = enclosure_mode_selected();
-            if (enclosure_state == 0x00) {
-                if (gpio_get_level(GPIO_NUM_1) == 1) {
-                    ext_restore_gpio_state(GPIO_NUM_33);
-                    ext_restore_gpio_state(GPIO_NUM_34);
-                    ext_restore_gpio_state(GPIO_NUM_35);
-                    ext_restore_gpio_state(GPIO_NUM_38);
-                } else {
-                    restore_gpio_state(GPIO_NUM_33);
-                    restore_gpio_state(GPIO_NUM_34);
-                    restore_gpio_state(GPIO_NUM_35);
-                    restore_gpio_state(GPIO_NUM_38);
-                }
-            } else {
-                restore_gpio_state(GPIO_NUM_33);
-                restore_gpio_state(GPIO_NUM_34);
-                restore_gpio_state(GPIO_NUM_35);
-                restore_gpio_state(GPIO_NUM_38);
-            }
+            restore_state();
             ESP_LOGI(TAG, "Applied all GPIO");
             break;
         default:
@@ -349,48 +368,39 @@ void tud_hid_set_report_cb(uint8_t instance,
 
 }
 
-void tud_suspend_cb(void)
-{
-    uint8_t suspend_enable = get_nvs_state(0x00, "suspend_enable");
-    if (suspend_enable == 0x00) {
+void tud_suspend_cb(bool remote_wakeup_en) {
+    uint8_t suspend_enable = get_nvs_state(0x00, "susp_en");
+    if (suspend_enable != 0x00) {
         gpio_set_level(GPIO_NUM_33,0);
         gpio_set_level(GPIO_NUM_34,0);
         gpio_set_level(GPIO_NUM_35,0);
         gpio_set_level(GPIO_NUM_38,0);
-        ESP_LOGI("USB", "Host suspended， disable all GPIO");
+        ESP_LOGI(TAG, "Host suspended, disable all GPIO");
     }
 }
 
 void tud_resume_cb(void) {
 
-    uint8_t suspend_enable = get_nvs_state(0x00, "suspend_enable");
+    restore_state();
+    ESP_LOGI(TAG, "Host resumed, restore GPIO state");
 
+}
+
+void tud_mount_cb(void) {
+
+    restore_state();
+    ESP_LOGI(TAG, "Host mounted, restore GPIO state");
+
+}
+
+void tud_umount_cb(void) {
+    uint8_t suspend_enable = get_nvs_state(0x00, "ususp_en");
     if (suspend_enable != 0x00) {
-
-        uint8_t enclosure_state = enclosure_mode_selected();
-    
-        if (enclosure_state == 0x00) {
-            if (gpio_get_level(GPIO_NUM_1) == 1) {
-                ext_restore_gpio_state(GPIO_NUM_33);
-                ext_restore_gpio_state(GPIO_NUM_34);
-                ext_restore_gpio_state(GPIO_NUM_35);
-                ext_restore_gpio_state(GPIO_NUM_38);
-            } else {
-                restore_gpio_state(GPIO_NUM_33);
-                restore_gpio_state(GPIO_NUM_34);
-                restore_gpio_state(GPIO_NUM_35);
-                restore_gpio_state(GPIO_NUM_38);
-            }
-        } else {
-            restore_gpio_state(GPIO_NUM_33);
-            restore_gpio_state(GPIO_NUM_34);
-            restore_gpio_state(GPIO_NUM_35);
-            restore_gpio_state(GPIO_NUM_38);
-        }
-        restore_gpio_state(GPIO_NUM_36);
-        restore_gpio_state(GPIO_NUM_37);
-        ESP_LOGI(TAG, "Host resumed, restore GPIO state");
-
+        gpio_set_level(GPIO_NUM_33,0);
+        gpio_set_level(GPIO_NUM_34,0);
+        gpio_set_level(GPIO_NUM_35,0);
+        gpio_set_level(GPIO_NUM_38,0);
+        ESP_LOGI(TAG, "Host unmounted, disable all GPIO");
     }
 }
 
@@ -436,30 +446,7 @@ void app_main(void) {
     gpio_set_level(GPIO_NUM_35, 0);
     gpio_set_level(GPIO_NUM_38, 0);
 
-    uint8_t enclosure_state = enclosure_mode_selected();
-
-    if (enclosure_state == 0x00) {
-        if (gpio_get_level(GPIO_NUM_1) == 1) {
-            ext_restore_gpio_state(GPIO_NUM_33);
-            ext_restore_gpio_state(GPIO_NUM_34);
-            ext_restore_gpio_state(GPIO_NUM_35);
-            ext_restore_gpio_state(GPIO_NUM_38);
-        } else {
-            restore_gpio_state(GPIO_NUM_33);
-            restore_gpio_state(GPIO_NUM_34);
-            restore_gpio_state(GPIO_NUM_35);
-            restore_gpio_state(GPIO_NUM_38);
-        }
-    } else {
-
-        restore_gpio_state(GPIO_NUM_33);
-        restore_gpio_state(GPIO_NUM_34);
-        restore_gpio_state(GPIO_NUM_35);
-        restore_gpio_state(GPIO_NUM_38);
-    }
-
-    restore_gpio_state(GPIO_NUM_36);
-    restore_gpio_state(GPIO_NUM_37);
+    restore_state();
 
     // clear_nvs_all();
 
