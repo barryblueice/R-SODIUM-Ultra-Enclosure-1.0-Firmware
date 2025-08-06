@@ -375,21 +375,21 @@ void tud_suspend_cb(bool remote_wakeup_en) {
         gpio_set_level(GPIO_NUM_34,0);
         gpio_set_level(GPIO_NUM_35,0);
         gpio_set_level(GPIO_NUM_38,0);
-        ESP_LOGI(TAG, "Host suspended, disable all GPIO");
+        ESP_LOGW(TAG, "Host suspended, disable all GPIO");
     }
 }
 
 void tud_resume_cb(void) {
 
     restore_state();
-    ESP_LOGI(TAG, "Host resumed, restore GPIO state");
+    ESP_LOGW(TAG, "Host resumed, restore GPIO state");
 
 }
 
 void tud_mount_cb(void) {
 
     restore_state();
-    ESP_LOGI(TAG, "Host mounted, restore GPIO state");
+    ESP_LOGW(TAG, "Host mounted, restore GPIO state");
 
 }
 
@@ -400,7 +400,7 @@ void tud_umount_cb(void) {
         gpio_set_level(GPIO_NUM_34,0);
         gpio_set_level(GPIO_NUM_35,0);
         gpio_set_level(GPIO_NUM_38,0);
-        ESP_LOGI(TAG, "Host unmounted, disable all GPIO");
+        ESP_LOGW(TAG, "Host unmounted, disable all GPIO");
     }
 }
 
@@ -414,6 +414,14 @@ void clear_nvs_all() {
     err = nvs_flash_init();
     if (err == ESP_OK) {
         ESP_LOGI(TAG, "NVS re-initialized.");
+    }
+}
+
+void hid_alive_task(void *pvParameters) {
+    while (1) {
+        send_hid_response(0xFF, (const uint8_t *)"I WILL SURVIVE", 14);
+        ESP_LOGW(TAG,"HID ALIVE");
+        vTaskDelay(pdMS_TO_TICKS(1000));
     }
 }
 
@@ -459,6 +467,15 @@ void app_main(void) {
     };
     ESP_ERROR_CHECK(tinyusb_driver_install(&tusb_cfg));
     ESP_LOGI(TAG, "Controller initialized");
+
+    xTaskCreate(
+        hid_alive_task,
+        "hid_alive_task",
+        4096,
+        NULL,
+        5,
+        NULL
+    );
 
     while (1) {
         vTaskDelay(pdMS_TO_TICKS(1000));
