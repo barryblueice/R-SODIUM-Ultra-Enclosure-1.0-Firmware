@@ -6,6 +6,10 @@
 #include "nvs_handle.h"
 #include <unistd.h>
 
+#define SWITCH_GPIO_MASK ((1ULL << GPIO_NUM_21) | (1ULL << GPIO_NUM_33) | (1ULL << GPIO_NUM_34) | (1ULL << GPIO_NUM_35) | (1ULL << GPIO_NUM_36)  | (1ULL << GPIO_NUM_37)  | (1ULL << GPIO_NUM_38))
+#define PWR_GPIO_MASK ((1ULL << GPIO_NUM_1))
+#define IO_GPIO_MASK ((1ULL << GPIO_NUM_19))
+
 static const char *TAG = "R-SODIUM Controller";
 
 void restore_gpio_state(uint8_t gpio_num) {
@@ -97,4 +101,33 @@ void restore_state(void) {
     }
     restore_gpio_state(GPIO_NUM_36);
     restore_gpio_state(GPIO_NUM_37);
+}
+
+void gpio_initialized() {
+    gpio_config_t switch_conf = {
+    .pin_bit_mask = SWITCH_GPIO_MASK,
+    .mode = GPIO_MODE_INPUT_OUTPUT,
+    .pull_up_en = GPIO_PULLUP_DISABLE,
+    .pull_down_en = GPIO_PULLDOWN_DISABLE,
+    .intr_type = GPIO_INTR_DISABLE,
+    };
+    gpio_config(&switch_conf);
+
+    gpio_config_t pwr_conf = {
+        .pin_bit_mask = PWR_GPIO_MASK,
+        .mode = GPIO_MODE_INPUT,
+        .pull_up_en = GPIO_PULLUP_DISABLE,
+        .pull_down_en = GPIO_PULLDOWN_DISABLE,
+        .intr_type = GPIO_INTR_DISABLE,
+    };
+    gpio_config(&pwr_conf);
+
+    gpio_config_t io_conf = {
+        .pin_bit_mask = IO_GPIO_MASK,
+        .mode = GPIO_MODE_INPUT,
+        .pull_up_en = GPIO_PULLUP_DISABLE,
+        .pull_down_en = GPIO_PULLDOWN_DISABLE,
+        .intr_type = GPIO_INTR_DISABLE,
+    };
+    gpio_config(&io_conf);
 }
