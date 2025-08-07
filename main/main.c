@@ -379,6 +379,7 @@ void tud_hid_set_report_cb(uint8_t instance,
 void tud_suspend_cb(bool remote_wakeup_en) {
     uint8_t suspend_enable = get_nvs_state(0x00, "susp_en");
     if (suspend_enable != 0x00) {
+        vTaskDelay(pdMS_TO_TICKS(5000));
         gpio_set_level(GPIO_NUM_33,0);
         gpio_set_level(GPIO_NUM_34,0);
         gpio_set_level(GPIO_NUM_35,0);
@@ -407,6 +408,7 @@ void tud_mount_cb(void) {
 void tud_umount_cb(void) {
     uint8_t suspend_enable = get_nvs_state(0x00, "ususp_en");
     if (suspend_enable != 0x00) {
+        vTaskDelay(pdMS_TO_TICKS(5000));
         gpio_set_level(GPIO_NUM_33,0);
         gpio_set_level(GPIO_NUM_34,0);
         gpio_set_level(GPIO_NUM_35,0);
