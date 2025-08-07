@@ -80,6 +80,7 @@ static void send_hid_response(uint8_t command, const uint8_t *payload, size_t pa
 }
 
 void hid_alive_task(void *pvParameters) {
+    vTaskDelay(pdMS_TO_TICKS(8000));
     while (1) {
         uint8_t report[REPORT_SIZE];
         memset(report, 0xFF, REPORT_SIZE);
