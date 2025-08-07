@@ -10,12 +10,14 @@
 #include "mbedtls/md.h"
 #include "class/hid/hid_device.h"
 #include <unistd.h>
+#include "esp_sleep.h"
 
 static const char *TAG = "R-SODIUM Controller";
 #define REPORT_SIZE 64
 #define HMAC_KEY    "a0HyIvVM6A6Z7dTPYrAk8s3Mpouh"
 #define SWITCH_GPIO_MASK ((1ULL << GPIO_NUM_21) | (1ULL << GPIO_NUM_33) | (1ULL << GPIO_NUM_34) | (1ULL << GPIO_NUM_35) | (1ULL << GPIO_NUM_36)  | (1ULL << GPIO_NUM_37)  | (1ULL << GPIO_NUM_38))
 #define PWR_GPIO_MASK ((1ULL << GPIO_NUM_1))
+#define IO_GPIO_MASK ((1ULL << GPIO_NUM_19))
 
 static volatile bool gpio_int_flag = false;
 const uint8_t hid_report_descriptor[] = {
@@ -382,6 +384,9 @@ void tud_suspend_cb(bool remote_wakeup_en) {
         gpio_set_level(GPIO_NUM_35,0);
         gpio_set_level(GPIO_NUM_38,0);
         ESP_LOGW(TAG, "Host suspended, disable all GPIO");
+        esp_sleep_enable_timer_wakeup(10000000);
+        esp_sleep_enable_ext0_wakeup(GPIO_NUM_19, 1);
+        esp_light_sleep_start();
     }
 }
 
@@ -407,6 +412,9 @@ void tud_umount_cb(void) {
         gpio_set_level(GPIO_NUM_35,0);
         gpio_set_level(GPIO_NUM_38,0);
         ESP_LOGW(TAG, "Host unmounted, disable all GPIO");
+        esp_sleep_enable_timer_wakeup(10000000);
+        esp_sleep_enable_ext0_wakeup(GPIO_NUM_19, 1);
+        esp_light_sleep_start();
     }
 }
 
@@ -436,14 +444,14 @@ void app_main(void) {
 
     init_nvs();
 
-    gpio_config_t io_conf = {
+    gpio_config_t switch_conf = {
         .pin_bit_mask = SWITCH_GPIO_MASK,
         .mode = GPIO_MODE_INPUT_OUTPUT,
         .pull_up_en = GPIO_PULLUP_DISABLE,
         .pull_down_en = GPIO_PULLDOWN_DISABLE,
         .intr_type = GPIO_INTR_DISABLE,
     };
-    gpio_config(&io_conf);
+    gpio_config(&switch_conf);
 
     gpio_config_t pwr_conf = {
         .pin_bit_mask = PWR_GPIO_MASK,
@@ -453,6 +461,15 @@ void app_main(void) {
         .intr_type = GPIO_INTR_DISABLE,
     };
     gpio_config(&pwr_conf);
+
+    gpio_config_t io_conf = {
+        .pin_bit_mask = IO_GPIO_MASK,
+        .mode = GPIO_MODE_INPUT,
+        .pull_up_en = GPIO_PULLUP_DISABLE,
+        .pull_down_en = GPIO_PULLDOWN_DISABLE,
+        .intr_type = GPIO_INTR_DISABLE,
+    };
+    gpio_config(&io_conf);
 
     gpio_set_level(GPIO_NUM_21, 1);
     gpio_set_level(GPIO_NUM_33, 0);
