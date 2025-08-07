@@ -4,13 +4,14 @@
 #include "freertos/task.h"
 #include "esp_log.h"
 #include "driver/gpio.h"
-#include "nvs_flash.h"
-#include "nvs.h"
 #include "tinyusb.h"
 #include "mbedtls/md.h"
 #include "class/hid/hid_device.h"
 #include <unistd.h>
 #include "esp_sleep.h"
+
+#include "nvs_handle.h"
+#include "gpio_handle.h"
 
 static const char *TAG = "R-SODIUM Controller";
 #define REPORT_SIZE 64
@@ -23,6 +24,8 @@ static volatile bool gpio_int_flag = false;
 const uint8_t hid_report_descriptor[] = {
     TUD_HID_REPORT_DESC_GENERIC_INOUT(REPORT_SIZE)
 };
+
+static TaskHandle_t hid_alive_handle = NULL;
 
 const char* hid_string_descriptor[5] = {
     (char[]){0x09, 0x04},
@@ -76,170 +79,34 @@ static void send_hid_response(uint8_t command, const uint8_t *payload, size_t pa
     ESP_LOGD(TAG, "Sent response for cmd 0x%02X", command);
 }
 
-static void send_empty_response(void) {
-
-    uint8_t report[REPORT_SIZE];
-    memset(report, 0xFF, REPORT_SIZE);
-    tud_hid_report(0, report, REPORT_SIZE);
-    ESP_LOGD(TAG, "Sent HID report filled with 0xFF");
-}
-
-void init_nvs() {
-    esp_err_t err = nvs_flash_init();
-    if (err == ESP_ERR_NVS_NO_FREE_PAGES || err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
-        nvs_flash_erase();
-        nvs_flash_init();
+void hid_alive_task(void *pvParameters) {
+    while (1) {
+        uint8_t report[REPORT_SIZE];
+        memset(report, 0xFF, REPORT_SIZE);
+        tud_hid_report(0, report, REPORT_SIZE);
+        ESP_LOGD(TAG, "Sent HID report filled with 0xFF");
+        vTaskDelay(pdMS_TO_TICKS(2000));
     }
 }
 
-uint8_t get_nvs_state(uint8_t gpio_num, const char *prefix) {
-    nvs_handle_t nvs_handle;
-    uint8_t value = 0;
-    char key[16];
-    snprintf(key, sizeof(key), "%s_%d",prefix , gpio_num);
+void start_hid_alive_task() {
 
-    esp_err_t ret = nvs_open("storage", NVS_READONLY, &nvs_handle);
-    if (ret == ESP_OK) {
-        if (nvs_get_u8(nvs_handle, key, &value) == ESP_OK) {
-            return value;
-        } else {
-            return 0;
-        }
-        nvs_close(nvs_handle);
-    } else {
-        return 0;
-    }
+    ESP_LOGI(TAG,"Start hid alive task...");
+    xTaskCreate(hid_alive_task, "hid_alive_task", 4096, NULL, 5, &hid_alive_handle);
 }
 
-void save_state(uint8_t gpio_num, uint8_t value, const char *prefix) {
-    nvs_handle_t nvs_handle;
-    char key[16];
-    snprintf(key, sizeof(key), "%s_%d", prefix, gpio_num);
-
-    ESP_LOGI(TAG, "Saving value %d for %s_%d", value, prefix, gpio_num);
-
-    if (nvs_open("storage", NVS_READWRITE, &nvs_handle) == ESP_OK) {
-        nvs_set_u8(nvs_handle, key, value);
-        nvs_commit(nvs_handle);
-        nvs_close(nvs_handle);
+void stop_hid_alive_task() {
+    if (hid_alive_handle != NULL) {
+        vTaskDelete(hid_alive_handle);
+        hid_alive_handle = NULL;
+        ESP_LOGI(TAG,"Stop hid alive task...");
     }
-}
-
-uint8_t enclosure_mode_selected() {
-    nvs_handle_t nvs_handle;
-    uint8_t value = 0;
-    char key[17];
-    snprintf(key, sizeof(key), "enclosure_mode_0");
-
-    esp_err_t ret = nvs_open("storage", NVS_READONLY, &nvs_handle);
-    if (ret == ESP_OK) {
-        if (nvs_get_u8(nvs_handle, key, &value) == ESP_OK) {
-            return value;
-        } else {
-            save_state(0x00, 0, "enclosure_mode");
-            return 0x00;
-        }
-        nvs_close(nvs_handle);
-    } else {
-        save_state(0x00, 0, "enclosure_mode");
-        return 0x00;
-    }
-}
-
-void restore_gpio_state(uint8_t gpio_num) {
-    nvs_handle_t nvs_handle;
-    uint8_t value = 0;
-    char key[16];
-    snprintf(key, sizeof(key), "gpio_%d", gpio_num);
-
-    esp_err_t ret = nvs_open("storage", NVS_READONLY, &nvs_handle);
-    if (ret == ESP_OK) {
-        if (nvs_get_u8(nvs_handle, key, &value) == ESP_OK) {
-            if (value == 1) {
-                if (gpio_num == 0x22 || gpio_num == 0x26) {
-                    uint8_t sata_onpower = get_nvs_state(0x00, "sata_onpower");
-                    ESP_LOGI(TAG, "Waiting %d second/s for GPIO %d power-up", sata_onpower, gpio_num);
-                    sleep(sata_onpower);
-                }
-            }
-            gpio_set_level(gpio_num, value);
-            ESP_LOGI(TAG, "Restored GPIO %d to value: %d", gpio_num, value);
-        } else {
-            gpio_set_level(gpio_num, 0);
-            ESP_LOGW(TAG, "No saved state for GPIO %d, set to 0", gpio_num);
-            save_state(gpio_num, 0, "gpio"); // 确保在 NVS 中保存默认状态
-            ESP_LOGI(TAG, "Default state saved for GPIO %d", gpio_num);
-        }
-        nvs_close(nvs_handle);
-    } else {
-        gpio_set_level(gpio_num, 0);
-        ESP_LOGE(TAG, "NVS open failed (0x%x): GPIO %d set to 0", ret, gpio_num);
-        save_state(gpio_num, 0, "gpio"); // 确保在 NVS 中保存默认状态
-        ESP_LOGI(TAG, "Default state saved for GPIO %d", gpio_num);
-    }
-}
-
-void ext_restore_gpio_state(uint8_t gpio_num) {
-    nvs_handle_t nvs_handle;
-    uint8_t value = 0;
-    char key[16];
-    snprintf(key, sizeof(key), "ext_gpio_%d", gpio_num);
-
-    esp_err_t ret = nvs_open("storage", NVS_READONLY, &nvs_handle);
-    if (ret == ESP_OK) {
-        if (nvs_get_u8(nvs_handle, key, &value) == ESP_OK) {
-            if (value == 1) {
-                if (gpio_num == 0x22 || gpio_num == 0x26) {
-                    uint8_t sata_onpower = get_nvs_state(0x00, "sata_onpower");
-                    ESP_LOGI(TAG, "Waiting %d second/s for EXT-GPIO %d power-up", sata_onpower, gpio_num);
-                    sleep(sata_onpower);
-                }
-            }
-            gpio_set_level(gpio_num, value);
-            ESP_LOGI(TAG, "Restored GPIO %d to value when ext-powered: %d", gpio_num, value);
-        } else {
-            gpio_set_level(gpio_num, 0);
-            ESP_LOGW(TAG, "No saved state for GPIO when ext-powered: %d, set to 0", gpio_num);
-            save_state(gpio_num, 0, "gpio"); // 确保在 NVS 中保存默认状态
-            ESP_LOGI(TAG, "Default state saved for GPIO when ext-powered: %d", gpio_num);
-        }
-        nvs_close(nvs_handle);
-    } else {
-        gpio_set_level(gpio_num, 0);
-        ESP_LOGE(TAG, "NVS open failed (0x%x): GPIO when ext-powered %d set to 0", ret, gpio_num);
-        save_state(gpio_num, 0, "gpio"); // 确保在 NVS 中保存默认状态
-        ESP_LOGI(TAG, "Default state saved for GPIO when ext-powered: %d", gpio_num);
-    }
-}
-
-void restore_state(void) {
-    uint8_t enclosure_state = enclosure_mode_selected();
-
-    if (enclosure_state == 0x00) {
-        if (gpio_get_level(GPIO_NUM_1) == 1) {
-            ext_restore_gpio_state(GPIO_NUM_33);
-            ext_restore_gpio_state(GPIO_NUM_34);
-            ext_restore_gpio_state(GPIO_NUM_35);
-            ext_restore_gpio_state(GPIO_NUM_38);
-        } else {
-            restore_gpio_state(GPIO_NUM_33);
-            restore_gpio_state(GPIO_NUM_34);
-            restore_gpio_state(GPIO_NUM_35);
-            restore_gpio_state(GPIO_NUM_38);
-        }
-    } else {
-        restore_gpio_state(GPIO_NUM_33);
-        restore_gpio_state(GPIO_NUM_34);
-        restore_gpio_state(GPIO_NUM_35);
-        restore_gpio_state(GPIO_NUM_38);
-    }
-    restore_gpio_state(GPIO_NUM_36);
-    restore_gpio_state(GPIO_NUM_37);
 }
 
 static void process_command(uint8_t cmd, const uint8_t *data) {
     // ESP_LOGI(TAG, "Received cmd 0x%02X", cmd);
     ESP_LOGI(TAG, "Original data: %d %02X %02X %02X %02X %02X", cmd, data[0], data[1], data[2], data[3], data[4]);
+    stop_hid_alive_task();
     if (cmd == 0xFE) {
         // 处理 PING 命令
         send_hid_response(cmd, (const uint8_t *)"PONG", 4);
@@ -392,6 +259,7 @@ void tud_suspend_cb(bool remote_wakeup_en) {
         esp_sleep_enable_timer_wakeup(10000000);
         esp_sleep_enable_ext0_wakeup(GPIO_NUM_19, 1);
         esp_light_sleep_start();
+        stop_hid_alive_task();
     }
 }
 
@@ -399,6 +267,7 @@ void tud_resume_cb(void) {
 
     restore_state();
     ESP_LOGW(TAG, "Host resumed, restore GPIO state");
+    start_hid_alive_task();
 
 }
 
@@ -406,6 +275,7 @@ void tud_mount_cb(void) {
 
     restore_state();
     ESP_LOGW(TAG, "Host mounted, restore GPIO state");
+    start_hid_alive_task();
 
 }
 
@@ -421,27 +291,7 @@ void tud_umount_cb(void) {
         esp_sleep_enable_timer_wakeup(10000000);
         esp_sleep_enable_ext0_wakeup(GPIO_NUM_19, 1);
         esp_light_sleep_start();
-    }
-}
-
-void clear_nvs_all() {
-    esp_err_t err;
-    err = nvs_flash_erase();
-    if (err == ESP_OK) {
-        ESP_LOGI(TAG, "NVS erased successfully.");
-    }
-
-    err = nvs_flash_init();
-    if (err == ESP_OK) {
-        ESP_LOGI(TAG, "NVS re-initialized.");
-    }
-}
-
-void hid_alive_task(void *pvParameters) {
-    while (1) {
-        send_empty_response();
-        ESP_LOGD(TAG,"HID ALIVE");
-        vTaskDelay(pdMS_TO_TICKS(2000));
+        stop_hid_alive_task();
     }
 }
 
@@ -497,14 +347,7 @@ void app_main(void) {
     ESP_ERROR_CHECK(tinyusb_driver_install(&tusb_cfg));
     ESP_LOGI(TAG, "Controller initialized");
 
-    xTaskCreate(
-        hid_alive_task,
-        "hid_alive_task",
-        4096,
-        NULL,
-        5,
-        NULL
-    );
+    start_hid_alive_task();
 
     while (1) {
         vTaskDelay(pdMS_TO_TICKS(1000));
