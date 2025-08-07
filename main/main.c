@@ -239,7 +239,7 @@ void restore_state(void) {
 
 static void process_command(uint8_t cmd, const uint8_t *data) {
     // ESP_LOGI(TAG, "Received cmd 0x%02X", cmd);
-    ESP_LOGI(TAG, "Original data: %d %02X %02X %02X %02X", cmd, data[0], data[1], data[2], data[3]);
+    ESP_LOGI(TAG, "Original data: %d %02X %02X %02X %02X %02X", cmd, data[0], data[1], data[2], data[3], data[4]);
     if (cmd == 0xFE) {
         // 处理 PING 命令
         send_hid_response(cmd, (const uint8_t *)"PONG", 4);
@@ -248,7 +248,9 @@ static void process_command(uint8_t cmd, const uint8_t *data) {
         switch (data[0])
         {
         case 0x01:
-            gpio_set_level(cmd, 1);
+            if (data[4] == 0x01) {
+                gpio_set_level(cmd, 1);
+            }
             send_hid_response(data[0], (const uint8_t *)"OK", 2);
             if (data[1] == 0x01) {
                 save_state(cmd, 1, "gpio");
@@ -256,7 +258,9 @@ static void process_command(uint8_t cmd, const uint8_t *data) {
             }
             break;
         case 0x00:
-            gpio_set_level(cmd, 0);
+            if (data[4] == 0x01) {
+                gpio_set_level(cmd, 0);
+            }
             send_hid_response(data[0], (const uint8_t *)"OK", 2);
             if (data[1] == 0x01) {
                 save_state(cmd, 0, "gpio");
