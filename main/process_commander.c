@@ -134,6 +134,11 @@ void process_command(uint8_t cmd, const uint8_t *data) {
             restore_state();
             ESP_LOGI(TAG, "Applied all GPIO");
             break;
+        case 0xFC:
+            // 重置ESP32
+            ESP_LOGI(TAG, "ESP32 Restart");
+            esp_restart();
+            break;
         default:
             // 未知指令
             send_hid_response(data[0], (const uint8_t *)"UNK", 3);
