@@ -167,6 +167,7 @@ void app_main(void) {
     ESP_LOGI(TAG, "R-SODIUM Ultra SSD Enclosure Controller Start");
 
     init_nvs();
+    gpio_initialized();
 
     gpio_set_level(GPIO_NUM_21, 1);
     gpio_set_level(GPIO_NUM_33, 0);

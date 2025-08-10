@@ -6,6 +6,7 @@
 #include "mbedtls/md.h"
 #include <string.h>
 #include "class/hid/hid_device.h"
+#include "esp_system.h"
 
 static const char *TAG = "R-SODIUM Controller";
 #define REPORT_SIZE 64
@@ -136,7 +137,7 @@ void process_command(uint8_t cmd, const uint8_t *data) {
             break;
         case 0xFC:
             // 重置ESP32
-            ESP_LOGI(TAG, "ESP32 Restart");
+            ESP_LOGI(TAG, "ESP32 Reset");
             esp_restart();
             break;
         default:
