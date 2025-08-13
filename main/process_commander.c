@@ -7,6 +7,7 @@
 #include <string.h>
 #include "class/hid/hid_device.h"
 #include "esp_system.h"
+#include "uf2_updater.h"
 
 static const char *TAG = "R-SODIUM Controller";
 #define REPORT_SIZE 64
