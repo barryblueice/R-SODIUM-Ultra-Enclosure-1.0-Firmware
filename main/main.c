@@ -175,7 +175,7 @@ void app_main(void) {
     gpio_set_level(GPIO_NUM_35, 0);
     gpio_set_level(GPIO_NUM_38, 0);
 
-    restore_state();
+    // restore_state();
 
     // clear_nvs_all();
 
