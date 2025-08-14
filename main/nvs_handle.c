@@ -4,7 +4,7 @@
 #include "nvs_handle.h"
 #include "esp_log.h"
 
-static const char *TAG = "R-SODIUM Controller";
+static const char *TAG = "NVS Handler";
 
 uint8_t get_nvs_state(uint8_t gpio_num, const char *prefix) {
     nvs_handle_t nvs_handle;

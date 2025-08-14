@@ -10,7 +10,7 @@
 #define PWR_GPIO_MASK ((1ULL << GPIO_NUM_1))
 #define IO_GPIO_MASK ((1ULL << GPIO_NUM_19))
 
-static const char *TAG = "R-SODIUM Controller";
+static const char *TAG = "GPIO Handler";
 
 void restore_gpio_state(uint8_t gpio_num) {
     nvs_handle_t nvs_handle;
