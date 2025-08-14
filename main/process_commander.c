@@ -5,6 +5,7 @@
 #include "driver/gpio.h"
 #include "mbedtls/md.h"
 #include <string.h>
+#include "class/hid/hid_device.h"
 #include "esp_system.h"
 
 static const char *TAG = "R-SODIUM Controller";
