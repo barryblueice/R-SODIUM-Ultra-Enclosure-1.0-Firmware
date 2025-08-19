@@ -13,6 +13,7 @@
 #include "nvs_handle.h"
 #include "gpio_handle.h"
 #include "process_commander.h"
+#include "ota_updater.h"
 
 static const char *TAG = "R-SODIUM Controller";
 #define REPORT_SIZE 64
@@ -93,8 +94,6 @@ void tud_hid_set_report_cb(uint8_t instance,
     uint8_t command = buffer[0];
     const uint8_t *payload = buffer + 1;
     const uint8_t *recv_hmac = buffer + 32;
-
-    // 计算并验证HMAC
     uint8_t calc_hmac[32];
     mbedtls_md_context_t ctx;
     const mbedtls_md_info_t *info = mbedtls_md_info_from_type(MBEDTLS_MD_SHA256);
@@ -123,6 +122,7 @@ void tud_suspend_cb(bool remote_wakeup_en) {
         gpio_set_level(GPIO_NUM_34,0);
         gpio_set_level(GPIO_NUM_35,0);
         gpio_set_level(GPIO_NUM_38,0);
+        gpio_set_level(GPIO_NUM_45,0);
         ESP_LOGW(TAG, "Host suspended, disable all GPIO");
         esp_sleep_enable_timer_wakeup(10000000);
         esp_sleep_enable_ext0_wakeup(GPIO_NUM_19, 1);
@@ -155,6 +155,7 @@ void tud_umount_cb(void) {
         gpio_set_level(GPIO_NUM_34,0);
         gpio_set_level(GPIO_NUM_35,0);
         gpio_set_level(GPIO_NUM_38,0);
+        gpio_set_level(GPIO_NUM_45,0);
         ESP_LOGW(TAG, "Host unmounted, disable all GPIO");
         esp_sleep_enable_timer_wakeup(10000000);
         esp_sleep_enable_ext0_wakeup(GPIO_NUM_19, 1);
@@ -168,12 +169,14 @@ void app_main(void) {
 
     init_nvs();
     gpio_initialized();
+    // ota_init();
 
     gpio_set_level(GPIO_NUM_21, 1);
     gpio_set_level(GPIO_NUM_33, 0);
     gpio_set_level(GPIO_NUM_34, 0);
     gpio_set_level(GPIO_NUM_35, 0);
     gpio_set_level(GPIO_NUM_38, 0);
+    gpio_set_level(GPIO_NUM_45,0);
 
     // restore_state();
 
@@ -185,6 +188,8 @@ void app_main(void) {
         .string_descriptor_count = sizeof(hid_string_descriptor) / sizeof(hid_string_descriptor[0]),
         .configuration_descriptor = hid_configuration_descriptor,
         .external_phy = false,
+        .self_powered = true,
+        .vbus_monitor_io = GPIO_NUM_9,
     };
     ESP_ERROR_CHECK(tinyusb_driver_install(&tusb_cfg));
     ESP_LOGI(TAG, "Controller initialized");

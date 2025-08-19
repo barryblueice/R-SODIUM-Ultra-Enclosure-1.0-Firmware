@@ -6,7 +6,7 @@
 #include "nvs_handle.h"
 #include <unistd.h>
 
-#define SWITCH_GPIO_MASK ((1ULL << GPIO_NUM_21) | (1ULL << GPIO_NUM_33) | (1ULL << GPIO_NUM_34) | (1ULL << GPIO_NUM_35) | (1ULL << GPIO_NUM_36)  | (1ULL << GPIO_NUM_37)  | (1ULL << GPIO_NUM_38))
+#define SWITCH_GPIO_MASK ((1ULL << GPIO_NUM_21) | (1ULL << GPIO_NUM_33) | (1ULL << GPIO_NUM_34) | (1ULL << GPIO_NUM_35) | (1ULL << GPIO_NUM_36)  | (1ULL << GPIO_NUM_37)  | (1ULL << GPIO_NUM_38)  | (1ULL << GPIO_NUM_45))
 #define PWR_GPIO_MASK ((1ULL << GPIO_NUM_1))
 #define IO_GPIO_MASK ((1ULL << GPIO_NUM_19))
 
@@ -87,17 +87,20 @@ void restore_state(void) {
             ext_restore_gpio_state(GPIO_NUM_34);
             ext_restore_gpio_state(GPIO_NUM_35);
             ext_restore_gpio_state(GPIO_NUM_38);
+            ext_restore_gpio_state(GPIO_NUM_45);
         } else {
             restore_gpio_state(GPIO_NUM_33);
             restore_gpio_state(GPIO_NUM_34);
             restore_gpio_state(GPIO_NUM_35);
             restore_gpio_state(GPIO_NUM_38);
+            restore_gpio_state(GPIO_NUM_45);
         }
     } else {
         restore_gpio_state(GPIO_NUM_33);
         restore_gpio_state(GPIO_NUM_34);
         restore_gpio_state(GPIO_NUM_35);
         restore_gpio_state(GPIO_NUM_38);
+        restore_gpio_state(GPIO_NUM_45);
     }
     restore_gpio_state(GPIO_NUM_36);
     restore_gpio_state(GPIO_NUM_37);

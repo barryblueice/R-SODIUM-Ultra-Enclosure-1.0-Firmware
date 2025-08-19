@@ -7,6 +7,7 @@
 #include <string.h>
 #include "class/hid/hid_device.h"
 #include "esp_system.h"
+#include "ota_updater.h"
 
 static const char *TAG = "R-SODIUM Controller";
 #define REPORT_SIZE 64
@@ -35,7 +36,17 @@ void send_hid_response(uint8_t command, const uint8_t *payload, size_t payload_l
 }
 
 void process_command(uint8_t cmd, const uint8_t *data) {
-    // ESP_LOGI(TAG, "Received cmd 0x%02X", cmd);
+    uint8_t ota_value = get_nvs_state(0x00,"ota_update");
+    // if (ota_value == 0x01) {
+    //     ESP_LOGW(TAG, "Starting OTA Updater");
+    //     hid_packet_t pkt;
+    //     pkt.command = cmd;
+    //     pkt.seq = data[0];
+    //     pkt.length = (cmd==0x00) ? 4 : 29;
+    //     memcpy(pkt.data, data + 1, pkt.length);
+    //     xQueueSend(hid_queue, &pkt, 0);
+    //     return;
+    // }
     ESP_LOGI(TAG, "Original data: %d %02X %02X %02X %02X %02X", cmd, data[0], data[1], data[2], data[3], data[4]);
     if (cmd == 0xFE) {
         // 处理 PING 命令
@@ -139,6 +150,10 @@ void process_command(uint8_t cmd, const uint8_t *data) {
             // 重置ESP32
             ESP_LOGI(TAG, "ESP32 Reset");
             esp_restart();
+            break;
+        case 0xFB:
+            // ota_update
+            save_state(0x00, 0x01, "ota_update");
             break;
         default:
             // 未知指令
