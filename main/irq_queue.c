@@ -5,8 +5,9 @@
 #include "freertos/queue.h"
 #include "freertos/event_groups.h"
 #include "esp_log.h"
+#include "esp_mac.h"
 #include "driver/gpio.h"
-#include "hddpc.h"
+#include "irq_queue.h"
 #include "gpio_handle.h"
 
 static const char *TAG = "HDDPC Event";
@@ -26,7 +27,6 @@ static void IRAM_ATTR hddpc_isr_handler(void* arg) {
     }
 }
 
-// 任务：从队列取 GPIO，调用对应回调
 void hddpc_task(void* arg) {
     int gpio_num;
     for (;;) {
@@ -120,4 +120,10 @@ void SATA2_callback(int gpio_num) {
             ESP_LOGW(TAG,"SATA2 (M.2) Power Up");
         }
     }
+}
+
+void bus_power_callback(int gpio_num) {
+    uint8_t _level = gpio_get_level(gpio_num);
+    ESP_LOGW(TAG, "Bus power triggered: %d", _level);
+    restore_state();
 }

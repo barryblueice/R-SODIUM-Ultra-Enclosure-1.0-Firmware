@@ -16,6 +16,7 @@ void hddpc2_callback(int gpio_num);
 void hddpc3_callback(int gpio_num);
 void SATA1_callback(int gpio_num);
 void SATA2_callback(int gpio_num);
+void bus_power_callback(int gpio_num);
 void gpio_register_callback(gpio_num_t gpio_num, hddpc_callback_t callback);
 
 #endif

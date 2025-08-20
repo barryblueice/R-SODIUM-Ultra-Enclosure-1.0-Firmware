@@ -16,7 +16,7 @@
 #include "gpio_handle.h"
 #include "process_commander.h"
 #include "ota_updater.h"
-#include "hddpc.h"
+#include "irq_queue.h"
 
 static const char *TAG = "R-SODIUM Controller";
 #define REPORT_SIZE 64
@@ -225,6 +225,7 @@ void app_main(void) {
     gpio_register_callback(GPIO_NUM_11, hddpc3_callback);
     gpio_register_callback(GPIO_NUM_34, SATA1_callback);
     gpio_register_callback(GPIO_NUM_38, SATA2_callback);
+    gpio_register_callback(GPIO_NUM_1, bus_power_callback);
     
     gpio_set_level(GPIO_NUM_14, 1);
 
