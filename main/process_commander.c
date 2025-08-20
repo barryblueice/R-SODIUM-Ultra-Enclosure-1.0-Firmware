@@ -32,8 +32,15 @@ void send_hid_response(uint8_t command, const uint8_t *payload, size_t payload_l
     memcpy(report + 32, mac, 32);
     tud_hid_report(0, report, REPORT_SIZE);
 
-    ESP_LOGD(TAG, "Sent response for cmd 0x%02X", command);
-}
+    char buf[3 * REPORT_SIZE + 1];
+    char *p = buf;
+    for (int i = 0; i < REPORT_SIZE; i++) {
+        p += sprintf(p, "%02X ", report[i]);
+    }
+    *p = '\0';
+
+        ESP_LOGI(TAG, "Sent response for cmd 0x%02X: %s", command, buf);
+    }
 
 void process_command(uint8_t cmd, const uint8_t *data) {
     // uint8_t ota_value = get_nvs_state(0x00,"ota_update");
