@@ -36,7 +36,7 @@ void send_hid_response(uint8_t command, const uint8_t *payload, size_t payload_l
 }
 
 void process_command(uint8_t cmd, const uint8_t *data) {
-    uint8_t ota_value = get_nvs_state(0x00,"ota_update");
+    // uint8_t ota_value = get_nvs_state(0x00,"ota_update");
     // if (ota_value == 0x01) {
     //     ESP_LOGW(TAG, "Starting OTA Updater");
     //     hid_packet_t pkt;

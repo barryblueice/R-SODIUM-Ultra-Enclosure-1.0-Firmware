@@ -2,6 +2,8 @@
 #include <string.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "freertos/queue.h"
+#include "freertos/event_groups.h"
 #include "esp_log.h"
 #include "driver/gpio.h"
 #include "tinyusb.h"
@@ -14,10 +16,12 @@
 #include "gpio_handle.h"
 #include "process_commander.h"
 #include "ota_updater.h"
+#include "hddpc.h"
 
 static const char *TAG = "R-SODIUM Controller";
 #define REPORT_SIZE 64
 #define HMAC_KEY    "a0HyIvVM6A6Z7dTPYrAk8s3Mpouh"
+#define ESP_INTR_FLAG_DEFAULT 0
 
 static volatile bool gpio_int_flag = false;
 const uint8_t hid_report_descriptor[] = {
@@ -66,6 +70,11 @@ void hid_alive_task(void *pvParameters) {
         vTaskDelay(pdMS_TO_TICKS(2000));
     }
 }
+
+// void hddpc_task(void *pvParameters) {
+
+//     vTaskDelay(pdMS_TO_TICKS(50));
+// }
 
 void start_hid_alive_task() {
 
@@ -204,6 +213,18 @@ void app_main(void) {
     ESP_LOGI(TAG, "Controller initialized");
 
     start_hid_alive_task();
+
+    hddpc_evt_queue = xQueueCreate(10, sizeof(int));
+
+    xTaskCreate(hddpc_task, "hddpc_task", 2048, NULL, 10, NULL);
+
+    gpio_install_isr_service(ESP_INTR_FLAG_DEFAULT);
+
+    gpio_register_callback(GPIO_NUM_13, hddpc1_callback);
+    gpio_register_callback(GPIO_NUM_12, hddpc2_callback);
+    gpio_register_callback(GPIO_NUM_11, hddpc3_callback);
+    gpio_register_callback(GPIO_NUM_34, SATA1_callback);
+    gpio_register_callback(GPIO_NUM_38, SATA2_callback);
 
     while (1) {
         vTaskDelay(pdMS_TO_TICKS(1000));

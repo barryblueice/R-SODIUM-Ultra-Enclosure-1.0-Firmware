@@ -7,12 +7,13 @@
 #include <unistd.h>
 
 #define SWITCH_GPIO_MASK ((1ULL << GPIO_NUM_21) | (1ULL << GPIO_NUM_33) | (1ULL << GPIO_NUM_34) | (1ULL << GPIO_NUM_35) | (1ULL << GPIO_NUM_36)  | (1ULL << GPIO_NUM_37)  | (1ULL << GPIO_NUM_38)  | (1ULL << GPIO_NUM_45))
+#define HDDPC_GPIO_MASK ((1ULL << GPIO_NUM_11) | (1ULL << GPIO_NUM_12) | (1ULL << GPIO_NUM_13))
 #define PWR_GPIO_MASK ((1ULL << GPIO_NUM_1))
 #define IO_GPIO_MASK ((1ULL << GPIO_NUM_19))
 
 static const char *TAG = "GPIO Handler";
 
-void restore_gpio_state(uint8_t gpio_num) {
+uint8_t restore_gpio_state(uint8_t gpio_num) {
     nvs_handle_t nvs_handle;
     uint8_t value = 0;
     char key[16];
@@ -30,11 +31,13 @@ void restore_gpio_state(uint8_t gpio_num) {
             }
             gpio_set_level(gpio_num, value);
             ESP_LOGI(TAG, "Restored GPIO %d to value: %d", gpio_num, value);
+            return value;
         } else {
             gpio_set_level(gpio_num, 0);
             ESP_LOGW(TAG, "No saved state for GPIO %d, set to 0", gpio_num);
             save_state(gpio_num, 0, "gpio"); // 确保在 NVS 中保存默认状态
             ESP_LOGI(TAG, "Default state saved for GPIO %d", gpio_num);
+            return 0;
         }
         nvs_close(nvs_handle);
     } else {
@@ -42,10 +45,11 @@ void restore_gpio_state(uint8_t gpio_num) {
         ESP_LOGE(TAG, "NVS open failed (0x%x): GPIO %d set to 0", ret, gpio_num);
         save_state(gpio_num, 0, "gpio"); // 确保在 NVS 中保存默认状态
         ESP_LOGI(TAG, "Default state saved for GPIO %d", gpio_num);
+        return 0;
     }
 }
 
-void ext_restore_gpio_state(uint8_t gpio_num) {
+uint8_t ext_restore_gpio_state(uint8_t gpio_num) {
     nvs_handle_t nvs_handle;
     uint8_t value = 0;
     char key[16];
@@ -63,11 +67,13 @@ void ext_restore_gpio_state(uint8_t gpio_num) {
             }
             gpio_set_level(gpio_num, value);
             ESP_LOGI(TAG, "Restored GPIO %d to value when ext-powered: %d", gpio_num, value);
+            return value;
         } else {
             gpio_set_level(gpio_num, 0);
             ESP_LOGW(TAG, "No saved state for GPIO when ext-powered: %d, set to 0", gpio_num);
             save_state(gpio_num, 0, "gpio"); // 确保在 NVS 中保存默认状态
             ESP_LOGI(TAG, "Default state saved for GPIO when ext-powered: %d", gpio_num);
+            return 0;
         }
         nvs_close(nvs_handle);
     } else {
@@ -75,6 +81,7 @@ void ext_restore_gpio_state(uint8_t gpio_num) {
         ESP_LOGE(TAG, "NVS open failed (0x%x): GPIO when ext-powered %d set to 0", ret, gpio_num);
         save_state(gpio_num, 0, "gpio"); // 确保在 NVS 中保存默认状态
         ESP_LOGI(TAG, "Default state saved for GPIO when ext-powered: %d", gpio_num);
+        return 0;
     }
 }
 
@@ -121,9 +128,18 @@ void gpio_initialized() {
         .mode = GPIO_MODE_INPUT,
         .pull_up_en = GPIO_PULLUP_DISABLE,
         .pull_down_en = GPIO_PULLDOWN_DISABLE,
-        .intr_type = GPIO_INTR_DISABLE,
+        .intr_type = GPIO_INTR_ANYEDGE,
     };
     gpio_config(&pwr_conf);
+
+    gpio_config_t hddpc_conf = {
+        .pin_bit_mask = HDDPC_GPIO_MASK,
+        .mode = GPIO_MODE_INPUT,
+        .pull_up_en = GPIO_PULLUP_DISABLE,
+        .pull_down_en = GPIO_PULLDOWN_DISABLE,
+        .intr_type = GPIO_INTR_ANYEDGE,
+    };
+    gpio_config(&hddpc_conf);
 
     gpio_config_t io_conf = {
         .pin_bit_mask = IO_GPIO_MASK,
