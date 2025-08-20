@@ -225,6 +225,8 @@ void app_main(void) {
     gpio_register_callback(GPIO_NUM_11, hddpc3_callback);
     gpio_register_callback(GPIO_NUM_34, SATA1_callback);
     gpio_register_callback(GPIO_NUM_38, SATA2_callback);
+    
+    gpio_set_level(GPIO_NUM_14, 1);
 
     while (1) {
         vTaskDelay(pdMS_TO_TICKS(1000));
