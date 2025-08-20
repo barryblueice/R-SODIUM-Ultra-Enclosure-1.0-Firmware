@@ -167,6 +167,15 @@ void tud_umount_cb(void) {
 void app_main(void) {
     ESP_LOGI(TAG, "R-SODIUM Ultra SSD Enclosure Controller Start");
 
+    const gpio_config_t vbus_gpio_config = {
+        .pin_bit_mask = GPIO_NUM_9,
+        .mode = GPIO_MODE_INPUT,
+        .intr_type = GPIO_INTR_DISABLE,
+        .pull_up_en = false,
+        .pull_down_en = false,
+    };
+    ESP_ERROR_CHECK(gpio_config(&vbus_gpio_config));
+
     init_nvs();
     gpio_initialized();
     // ota_init();
@@ -176,7 +185,7 @@ void app_main(void) {
     gpio_set_level(GPIO_NUM_34, 0);
     gpio_set_level(GPIO_NUM_35, 0);
     gpio_set_level(GPIO_NUM_38, 0);
-    gpio_set_level(GPIO_NUM_45,0);
+    gpio_set_level(GPIO_NUM_45, 0);
 
     // restore_state();
 
