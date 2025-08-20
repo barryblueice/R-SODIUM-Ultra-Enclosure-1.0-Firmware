@@ -124,6 +124,7 @@ void SATA2_callback(int gpio_num) {
 
 void bus_power_callback(int gpio_num) {
     uint8_t _level = gpio_get_level(gpio_num);
-    ESP_LOGW(TAG, "Bus power triggered: %d", _level);
-    restore_state();
+    ESP_LOGW(TAG, "Bus power triggered: %d, ESP32 RESET", _level);
+    // restore_state();
+    esp_restart();
 }
