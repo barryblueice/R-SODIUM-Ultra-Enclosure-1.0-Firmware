@@ -134,7 +134,6 @@ void tud_suspend_cb(bool remote_wakeup_en) {
         gpio_set_level(GPIO_NUM_45,0);
         ESP_LOGW(TAG, "Host suspended, disable all GPIO");
         esp_sleep_enable_timer_wakeup(10000000);
-        esp_sleep_enable_ext0_wakeup(GPIO_NUM_19, 1);
         esp_light_sleep_start();
         stop_hid_alive_task();
     }
@@ -167,7 +166,6 @@ void tud_umount_cb(void) {
         gpio_set_level(GPIO_NUM_45,0);
         ESP_LOGW(TAG, "Host unmounted, disable all GPIO");
         esp_sleep_enable_timer_wakeup(10000000);
-        esp_sleep_enable_ext0_wakeup(GPIO_NUM_19, 1);
         esp_light_sleep_start();
         stop_hid_alive_task();
     }
@@ -228,6 +226,8 @@ void app_main(void) {
     gpio_register_callback(GPIO_NUM_1, bus_power_callback);
     
     gpio_set_level(GPIO_NUM_14, 1);
+
+    restore_state();
 
     while (1) {
         vTaskDelay(pdMS_TO_TICKS(1000));
