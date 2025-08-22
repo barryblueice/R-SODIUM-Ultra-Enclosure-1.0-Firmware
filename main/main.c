@@ -30,6 +30,23 @@ const uint8_t hid_report_descriptor[] = {
 
 static TaskHandle_t hid_alive_handle = NULL;
 
+const tusb_desc_device_t hid_device_descriptor = {
+    .bLength            = sizeof(tusb_desc_device_t),
+    .bDescriptorType    = TUSB_DESC_DEVICE,
+    .bcdUSB             = 0x0200,
+    .bDeviceClass       = 0x00,
+    .bDeviceSubClass    = 0x00,
+    .bDeviceProtocol    = 0x00,
+    .bMaxPacketSize0    = CFG_TUD_ENDPOINT0_SIZE,
+    .idVendor           = 0x0D00,
+    .idProduct          = 0x0721,
+    .bcdDevice          = 0x0100,
+    .iManufacturer      = 0x01,
+    .iProduct           = 0x02,
+    .iSerialNumber      = 0x03,
+    .bNumConfigurations = 0x01
+};
+
 const char* hid_string_descriptor[5] = {
     (char[]){0x09, 0x04},
     "R-SODIUM Technology",
@@ -199,7 +216,7 @@ void app_main(void) {
     // clear_nvs_all();
 
     const tinyusb_config_t tusb_cfg = {
-        .device_descriptor = NULL,
+        .device_descriptor = &hid_device_descriptor,
         .string_descriptor = hid_string_descriptor,
         .string_descriptor_count = sizeof(hid_string_descriptor) / sizeof(hid_string_descriptor[0]),
         .configuration_descriptor = hid_configuration_descriptor,
