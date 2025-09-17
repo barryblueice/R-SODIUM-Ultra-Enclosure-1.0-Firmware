@@ -228,6 +228,9 @@ void rst_hid_task(void *param)
 void app_main(void) {
     ESP_LOGI(TAG, "R-SODIUM Ultra SSD Enclosure Controller Start");
 
+    init_nvs();
+    gpio_initialized();
+
     // const gpio_config_t vbus_gpio_config = {
     //     .pin_bit_mask = 1ULL << GPIO_NUM_9,
     //     .mode = GPIO_MODE_INPUT,
@@ -236,9 +239,6 @@ void app_main(void) {
     //     .pull_down_en = false,
     // };
     // ESP_ERROR_CHECK(gpio_config(&vbus_gpio_config));
-
-    init_nvs();
-    gpio_initialized();
     // ota_init();
 
     gpio_set_level(GPIO_NUM_21, 1);

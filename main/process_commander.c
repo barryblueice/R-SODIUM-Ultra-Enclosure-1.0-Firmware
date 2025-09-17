@@ -8,10 +8,29 @@
 #include "class/hid/hid_device.h"
 #include "esp_system.h"
 #include "ota_updater.h"
+#include "esp_rom_sys.h"
+#include "esp_sleep.h"
+#include "tusb.h"
+#include "process_commander.h"
+#include "esp_rom_gpio.h"
+#include "soc/rtc_cntl_reg.h"
 
 static const char *TAG = "R-SODIUM Controller";
 #define REPORT_SIZE 64
 #define HMAC_KEY    "a0HyIvVM6A6Z7dTPYrAk8s3Mpouh"
+
+RTC_DATA_ATTR int dfu_flag = 0;
+
+void enter_dfu_mode(void)
+{
+
+    ESP_LOGW(TAG, "Preparing to enter ROM DFU mode...");
+    gpio_set_direction(GPIO_NUM_0, GPIO_MODE_OUTPUT);
+    gpio_set_level(GPIO_NUM_0, 0);
+    REG_WRITE(RTC_CNTL_OPTION1_REG, RTC_CNTL_FORCE_DOWNLOAD_BOOT);
+    vTaskDelay(pdMS_TO_TICKS(1000));
+    esp_restart();
+}
 
 void send_hid_response(uint8_t command, const uint8_t *payload, size_t payload_len) {
     uint8_t report[REPORT_SIZE] = {0};
@@ -159,8 +178,8 @@ void process_command(uint8_t cmd, const uint8_t *data) {
             esp_restart();
             break;
         case 0xFB:
-            // ota_update
-            save_state(0x00, 0x01, "ota_update");
+            // dfu_update
+            enter_dfu_mode();
             break;
         default:
             // 未知指令
