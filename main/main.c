@@ -18,6 +18,9 @@
 #include "ota_updater.h"
 #include "irq_queue.h"
 
+static volatile bool usb_reenum_req = false;
+static volatile bool usb_mounted = false; 
+
 static const char *TAG = "R-SODIUM Controller";
 #define REPORT_SIZE 64
 #define HMAC_KEY    "a0HyIvVM6A6Z7dTPYrAk8s3Mpouh"
@@ -140,21 +143,21 @@ void tud_hid_set_report_cb(uint8_t instance,
 
 }
 
-void tud_suspend_cb(bool remote_wakeup_en) {
-    uint8_t suspend_enable = get_nvs_state(0x00, "susp_en");
-    if (suspend_enable != 0x00) {
-        vTaskDelay(pdMS_TO_TICKS(5000));
-        gpio_set_level(GPIO_NUM_33,0);
-        gpio_set_level(GPIO_NUM_34,0);
-        gpio_set_level(GPIO_NUM_35,0);
-        gpio_set_level(GPIO_NUM_38,0);
-        gpio_set_level(GPIO_NUM_45,0);
-        ESP_LOGW(TAG, "Host suspended, disable all GPIO");
-        esp_sleep_enable_timer_wakeup(10000000);
-        esp_light_sleep_start();
-        stop_hid_alive_task();
-    }
-}
+// void tud_suspend_cb(bool remote_wakeup_en) {
+//     uint8_t suspend_enable = get_nvs_state(0x00, "susp_en");
+//     if (suspend_enable != 0x00) {
+//         vTaskDelay(pdMS_TO_TICKS(5000));
+//         gpio_set_level(GPIO_NUM_33,0);
+//         gpio_set_level(GPIO_NUM_34,0);
+//         gpio_set_level(GPIO_NUM_35,0);
+//         gpio_set_level(GPIO_NUM_38,0);
+//         gpio_set_level(GPIO_NUM_45,0);
+//         ESP_LOGW(TAG, "Host suspended, disable all GPIO");
+//         esp_sleep_enable_timer_wakeup(10000000);
+//         esp_light_sleep_start();
+//         stop_hid_alive_task();
+//     }
+// }
 
 void tud_resume_cb(void) {
 
@@ -169,6 +172,7 @@ void tud_mount_cb(void) {
     restore_state();
     ESP_LOGW(TAG, "Host mounted, restore GPIO state");
     start_hid_alive_task();
+    usb_mounted = true;
 
 }
 
@@ -185,6 +189,39 @@ void tud_umount_cb(void) {
         esp_sleep_enable_timer_wakeup(10000000);
         esp_light_sleep_start();
         stop_hid_alive_task();
+    }
+    usb_mounted = false;
+}
+
+void tud_reset_cb(void)
+{
+    ESP_LOGW(TAG, "USB bus reset detected");
+    restore_state();
+    start_hid_alive_task();
+    usb_reenum_req = true;
+}
+
+void rst_hid_task(void *param)
+{
+    for (;;)
+    {
+        tud_task();
+
+        if (usb_reenum_req) {
+            usb_reenum_req = false;
+
+            if (!usb_mounted) {
+                ESP_LOGW(TAG, "Force USB re-enumeration...");
+                tud_disconnect();
+                vTaskDelay(pdMS_TO_TICKS(500));
+                tud_connect();
+                ESP_LOGI(TAG, "Re-enumeration complete");
+            } else {
+                ESP_LOGI(TAG, "Device already mounted, skip re-enum");
+            }
+        }
+
+        vTaskDelay(pdMS_TO_TICKS(10));
     }
 }
 
@@ -232,6 +269,7 @@ void app_main(void) {
     hddpc_evt_queue = xQueueCreate(10, sizeof(int));
 
     xTaskCreate(hddpc_task, "hddpc_task", 2048, NULL, 10, NULL);
+    xTaskCreate(rst_hid_task, "rst_hid_task", 4096, NULL, 5, NULL);
 
     gpio_install_isr_service(ESP_INTR_FLAG_DEFAULT);
 
