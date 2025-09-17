@@ -17,6 +17,7 @@
 #include "process_commander.h"
 #include "ota_updater.h"
 #include "irq_queue.h"
+#include "alive_hid.h"
 
 static volatile bool usb_reenum_req = false;
 static volatile bool usb_mounted = false; 
@@ -30,8 +31,6 @@ static volatile bool gpio_int_flag = false;
 const uint8_t hid_report_descriptor[] = {
     TUD_HID_REPORT_DESC_GENERIC_INOUT(REPORT_SIZE)
 };
-
-static TaskHandle_t hid_alive_handle = NULL;
 
 const tusb_desc_device_t hid_device_descriptor = {
     .bLength            = sizeof(tusb_desc_device_t),
@@ -80,35 +79,10 @@ uint16_t tud_hid_get_report_cb(uint8_t instance,
     return 0;
 }
 
-void hid_alive_task(void *pvParameters) {
-    vTaskDelay(pdMS_TO_TICKS(8000));
-    while (1) {
-        uint8_t report[REPORT_SIZE];
-        memset(report, 0xFF, REPORT_SIZE);
-        tud_hid_report(0, report, REPORT_SIZE);
-        ESP_LOGD(TAG, "Sent HID report filled with 0xFF");
-        vTaskDelay(pdMS_TO_TICKS(2000));
-    }
-}
-
 // void hddpc_task(void *pvParameters) {
 
 //     vTaskDelay(pdMS_TO_TICKS(50));
 // }
-
-void start_hid_alive_task() {
-
-    ESP_LOGI(TAG,"Start hid alive task...");
-    xTaskCreate(hid_alive_task, "hid_alive_task", 4096, NULL, 5, &hid_alive_handle);
-}
-
-void stop_hid_alive_task() {
-    if (hid_alive_handle != NULL) {
-        vTaskDelete(hid_alive_handle);
-        hid_alive_handle = NULL;
-        ESP_LOGI(TAG,"Stop hid alive task...");
-    }
-}
 
 void tud_hid_set_report_cb(uint8_t instance,
                            uint8_t report_id,

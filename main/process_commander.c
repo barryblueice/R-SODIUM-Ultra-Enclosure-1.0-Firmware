@@ -14,6 +14,7 @@
 #include "process_commander.h"
 #include "esp_rom_gpio.h"
 #include "soc/rtc_cntl_reg.h"
+#include "alive_hid.h"
 
 static const char *TAG = "R-SODIUM Controller";
 #define REPORT_SIZE 64
@@ -167,6 +168,16 @@ void process_command(uint8_t cmd, const uint8_t *data) {
             uint8_t umounted_suspend_value = get_nvs_state(0x00, "ususp_en");
             const char *umounted_suspend_enable = umounted_suspend_value ? "HIGH" : "LOW";
             send_hid_response(data[0], (const uint8_t *)umounted_suspend_enable, strlen(umounted_suspend_enable));
+            break;
+        case 0x0F:
+            // 集体返回供电GPIO的状态
+            uint8_t payload[4] = {
+                gpio_get_level(GPIO_NUM_45), 
+                gpio_get_level(GPIO_NUM_34), 
+                gpio_get_level(GPIO_NUM_38), 
+                gpio_get_level(GPIO_NUM_1)
+            };
+            send_hid_response(0x00, payload, sizeof(payload));
             break;
         case 0xFD:
             // 应用全GPIO
