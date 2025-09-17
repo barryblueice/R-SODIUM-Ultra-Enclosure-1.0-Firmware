@@ -73,6 +73,7 @@ void process_command(uint8_t cmd, const uint8_t *data) {
     //     xQueueSend(hid_queue, &pkt, 0);
     //     return;
     // }
+    stop_hid_alive_task();
     ESP_LOGI(TAG, "Original data: %d %02X %02X %02X %02X %02X", cmd, data[0], data[1], data[2], data[3], data[4]);
     if (cmd == 0xFE) {
         // 处理 PING 命令
