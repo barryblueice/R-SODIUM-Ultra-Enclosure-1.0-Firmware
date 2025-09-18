@@ -7,7 +7,6 @@
 #include <string.h>
 #include "class/hid/hid_device.h"
 #include "esp_system.h"
-#include "ota_updater.h"
 #include "esp_rom_sys.h"
 #include "esp_sleep.h"
 #include "tusb.h"
@@ -26,8 +25,6 @@ void enter_dfu_mode(void)
 {
 
     ESP_LOGW(TAG, "Preparing to enter ROM DFU mode...");
-    gpio_set_direction(GPIO_NUM_0, GPIO_MODE_OUTPUT);
-    gpio_set_level(GPIO_NUM_0, 0);
     REG_WRITE(RTC_CNTL_OPTION1_REG, RTC_CNTL_FORCE_DOWNLOAD_BOOT);
     vTaskDelay(pdMS_TO_TICKS(1000));
     esp_restart();
@@ -74,7 +71,6 @@ void process_command(uint8_t cmd, const uint8_t *data) {
     //     xQueueSend(hid_queue, &pkt, 0);
     //     return;
     // }
-    stop_hid_alive_task();
     ESP_LOGI(TAG, "Original data: %d %02X %02X %02X %02X %02X", cmd, data[0], data[1], data[2], data[3], data[4]);
     if (cmd == 0xFE) {
         // 处理 PING 命令

@@ -15,7 +15,6 @@
 #include "nvs_handle.h"
 #include "gpio_handle.h"
 #include "process_commander.h"
-#include "ota_updater.h"
 #include "irq_queue.h"
 #include "alive_hid.h"
 
@@ -177,27 +176,31 @@ void tud_reset_cb(void)
 
 void rst_hid_task(void *param)
 {
-    for (;;)
-    {
-        tud_task();
+    ESP_LOGI(TAG, "Waiting for USB to mount...");
 
-        if (usb_reenum_req) {
-            usb_reenum_req = false;
+    int timeout_ms = 3000;
+    int elapsed = 0;
+    const int step = 100;
 
-            if (!usb_mounted) {
-                ESP_LOGW(TAG, "Force USB re-enumeration...");
-                tud_disconnect();
-                vTaskDelay(pdMS_TO_TICKS(500));
-                tud_connect();
-                ESP_LOGI(TAG, "Re-enumeration complete");
-            } else {
-                ESP_LOGI(TAG, "Device already mounted, skip re-enum");
-            }
+    while (elapsed < timeout_ms) {
+        if (tud_mounted()) {
+            ESP_LOGI(TAG, "USB mounted successfully, no need to re-enum");
+            vTaskDelete(NULL);
+            return;
         }
-
-        vTaskDelay(pdMS_TO_TICKS(10));
+        vTaskDelay(pdMS_TO_TICKS(step));
+        elapsed += step;
     }
+
+    ESP_LOGW(TAG, "USB not mounted in %d ms, forcing re-enumeration...", timeout_ms);
+    tud_disconnect();
+    vTaskDelay(pdMS_TO_TICKS(1000));
+    tud_connect();
+    ESP_LOGI(TAG, "USB re-enumeration complete");
+
+    vTaskDelete(NULL);
 }
+
 
 void app_main(void) {
     ESP_LOGI(TAG, "R-SODIUM Ultra SSD Enclosure Controller Start");
@@ -225,6 +228,8 @@ void app_main(void) {
     // restore_state();
 
     // clear_nvs_all();
+
+    restore_state();
 
     const tinyusb_config_t tusb_cfg = {
         .device_descriptor = &hid_device_descriptor,
@@ -255,8 +260,6 @@ void app_main(void) {
     gpio_register_callback(GPIO_NUM_1, bus_power_callback);
     
     gpio_set_level(GPIO_NUM_14, 1);
-
-    restore_state();
 
     while (1) {
         vTaskDelay(pdMS_TO_TICKS(1000));
