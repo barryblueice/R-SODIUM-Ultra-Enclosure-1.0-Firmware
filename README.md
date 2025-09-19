@@ -4,6 +4,7 @@
 > [!CAUTION]
 > 1. 仅适用第一代ESP32版本（增强版）/ Ver. 1.1版本，第一代8051版本不再提供任何技术支持。
 > 2. 自固件版本v1.2开始，第一代增强版固件仅部分功能兼容，仅硬件版本Ver. 1.1可使用完整功能。
+> 3. v1.3版本固件开始提供dfu固件，可通过[ESP32-S2 Web flasher](https://dfu.stetelthings.com/)通过ESP32-S2的原生USB PHY进行固件烧录，无需额外的CH340C小板。
 
 开发环境：
  - ESP-IDF
