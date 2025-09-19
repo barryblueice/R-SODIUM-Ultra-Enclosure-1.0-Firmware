@@ -201,6 +201,12 @@ void rst_hid_task(void *param)
     vTaskDelete(NULL);
 }
 
+void usb_task(void *param) {
+    while (1) {
+        tud_task();
+        vTaskDelay(pdMS_TO_TICKS(1));
+    }
+}
 
 void app_main(void) {
     ESP_LOGI(TAG, "R-SODIUM Ultra SSD Enclosure Controller Start");
@@ -243,12 +249,16 @@ void app_main(void) {
     ESP_ERROR_CHECK(tinyusb_driver_install(&tusb_cfg));
     ESP_LOGI(TAG, "Controller initialized");
 
+    vTaskDelay(pdMS_TO_TICKS(300));
+    tud_connect();
+
     start_hid_alive_task();
 
     hddpc_evt_queue = xQueueCreate(10, sizeof(int));
 
-    xTaskCreate(hddpc_task, "hddpc_task", 2048, NULL, 10, NULL);
-    xTaskCreate(rst_hid_task, "rst_hid_task", 4096, NULL, 5, NULL);
+    xTaskCreate(hddpc_task, "hddpc_task", 2048, NULL, 5, NULL);
+    xTaskCreate(rst_hid_task, "rst_hid_task", 4096, NULL, 6, NULL);
+    // xTaskCreate(usb_task, "usb_task", 4096, NULL, 10, NULL);
 
     gpio_install_isr_service(ESP_INTR_FLAG_DEFAULT);
 
@@ -260,8 +270,4 @@ void app_main(void) {
     gpio_register_callback(GPIO_NUM_1, bus_power_callback);
     
     gpio_set_level(GPIO_NUM_14, 1);
-
-    while (1) {
-        vTaskDelay(pdMS_TO_TICKS(1000));
-    }
 }
