@@ -9,6 +9,7 @@
 #include "driver/gpio.h"
 #include "irq_queue.h"
 #include "gpio_handle.h"
+#include "nvs_handle.h"
 
 static const char *TAG = "HDDPC Event";
 
@@ -125,6 +126,10 @@ void SATA2_callback(int gpio_num) {
 void bus_power_callback(int gpio_num) {
     uint8_t _level = gpio_get_level(gpio_num);
     ESP_LOGW(TAG, "Bus power triggered: %d, ESP32 RESET", _level);
+    uint8_t ext_restart_value = get_nvs_state(0x00, "ext_restart");
+    if (ext_restart_value == 0x01) {
     // restore_state();
-    esp_restart();
+        esp_restart();
+    }
+    restore_state();
 }

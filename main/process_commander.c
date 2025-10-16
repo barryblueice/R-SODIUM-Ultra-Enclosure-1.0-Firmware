@@ -175,6 +175,11 @@ void process_command(uint8_t cmd, const uint8_t *data) {
             };
             send_hid_response(0x00, payload, sizeof(payload));
             break;
+        case 0x10:
+            // 当外置供电插入时是否重启（保存值）
+            save_state(0x00, cmd, "ext_restart");
+            send_hid_response(data[0], (const uint8_t *)"OK", 2);
+            break;
         case 0xFD:
             // 应用全GPIO
             restore_state();
@@ -191,7 +196,7 @@ void process_command(uint8_t cmd, const uint8_t *data) {
             break;
         case 0xFA:
             // version_return
-            const char *current_version = "v1.4";
+            const char *current_version = "v1.4.1";
             send_hid_response(data[0], (const uint8_t *)current_version, strlen(current_version));
             break;
         default:
