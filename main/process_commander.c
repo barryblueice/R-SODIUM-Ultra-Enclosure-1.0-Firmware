@@ -196,7 +196,7 @@ void process_command(uint8_t cmd, const uint8_t *data) {
             break;
         case 0xFA:
             // version_return
-            const char *current_version = "v1.4.1";
+            const char *current_version = "v1.4.2";
             send_hid_response(data[0], (const uint8_t *)current_version, strlen(current_version));
             break;
         default:
