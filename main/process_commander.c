@@ -168,10 +168,10 @@ void process_command(uint8_t cmd, const uint8_t *data) {
         case 0x0F:
             // 集体返回供电GPIO的状态
             uint8_t payload[4] = {
-                gpio_get_level(GPIO_NUM_45), 
-                gpio_get_level(GPIO_NUM_34), 
-                gpio_get_level(GPIO_NUM_38), 
-                gpio_get_level(GPIO_NUM_1)
+                get_nvs_state(0x2D, "gpio"),
+                get_nvs_state(0x22, "gpio"),
+                get_nvs_state(0x26, "gpio"),
+                gpio_get_level(0x01)
             };
             send_hid_response(0x00, payload, sizeof(payload));
             break;
