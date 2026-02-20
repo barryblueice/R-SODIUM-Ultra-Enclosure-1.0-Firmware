@@ -56,19 +56,16 @@ const char* hid_string_descriptor[5] = {
     "R-SODIUM HID Controller",
 };
 
-// 配置描述符
 #define TUSB_DESC_TOTAL_LEN (TUD_CONFIG_DESC_LEN + TUD_HID_DESC_LEN)
 static const uint8_t hid_configuration_descriptor[] = {
     TUD_CONFIG_DESCRIPTOR(1, 1, 0, TUSB_DESC_TOTAL_LEN, 0x00, 100),
     TUD_HID_DESCRIPTOR(0, 0, false, sizeof(hid_report_descriptor), 0x81, REPORT_SIZE, 10),
 };
 
-// HID 描述符回调
 uint8_t const *tud_hid_descriptor_report_cb(uint8_t instance) {
     return hid_report_descriptor;
 }
 
-// 主机读取 HID 报告（不使用）
 uint16_t tud_hid_get_report_cb(uint8_t instance,
                                 uint8_t report_id,
                                 hid_report_type_t report_type,
@@ -77,11 +74,6 @@ uint16_t tud_hid_get_report_cb(uint8_t instance,
                                 uint16_t reqlen) {
     return 0;
 }
-
-// void hddpc_task(void *pvParameters) {
-
-//     vTaskDelay(pdMS_TO_TICKS(50));
-// }
 
 void tud_hid_set_report_cb(uint8_t instance,
                            uint8_t report_id,
@@ -102,7 +94,7 @@ void tud_hid_set_report_cb(uint8_t instance,
     mbedtls_md_init(&ctx);
     mbedtls_md_setup(&ctx, info, 1);
     mbedtls_md_hmac_starts(&ctx, (const unsigned char *)HMAC_KEY, strlen(HMAC_KEY));
-    mbedtls_md_hmac_update(&ctx, buffer, 32); // command + payload(31)
+    mbedtls_md_hmac_update(&ctx, buffer, 32);
     mbedtls_md_hmac_finish(&ctx, calc_hmac);
     mbedtls_md_free(&ctx);
 
@@ -115,22 +107,6 @@ void tud_hid_set_report_cb(uint8_t instance,
     process_command(command, payload);
 
 }
-
-// void tud_suspend_cb(bool remote_wakeup_en) {
-//     uint8_t suspend_enable = get_nvs_state(0x00, "susp_en");
-//     if (suspend_enable != 0x00) {
-//         vTaskDelay(pdMS_TO_TICKS(5000));
-//         gpio_set_level(GPIO_NUM_33,0);
-//         gpio_set_level(GPIO_NUM_34,0);
-//         gpio_set_level(GPIO_NUM_35,0);
-//         gpio_set_level(GPIO_NUM_38,0);
-//         gpio_set_level(GPIO_NUM_45,0);
-//         ESP_LOGW(TAG, "Host suspended, disable all GPIO");
-//         esp_sleep_enable_timer_wakeup(10000000);
-//         esp_light_sleep_start();
-//         stop_hid_alive_task();
-//     }
-// }
 
 void tud_resume_cb(void) {
 
@@ -214,26 +190,12 @@ void app_main(void) {
     init_nvs();
     gpio_initialized();
 
-    // const gpio_config_t vbus_gpio_config = {
-    //     .pin_bit_mask = 1ULL << GPIO_NUM_9,
-    //     .mode = GPIO_MODE_INPUT,
-    //     .intr_type = GPIO_INTR_DISABLE,
-    //     .pull_up_en = false,
-    //     .pull_down_en = false,
-    // };
-    // ESP_ERROR_CHECK(gpio_config(&vbus_gpio_config));
-    // ota_init();
-
     gpio_set_level(GPIO_NUM_21, 1);
     gpio_set_level(GPIO_NUM_33, 0);
     gpio_set_level(GPIO_NUM_34, 0);
     gpio_set_level(GPIO_NUM_35, 0);
     gpio_set_level(GPIO_NUM_38, 0);
     gpio_set_level(GPIO_NUM_45, 0);
-
-    // restore_state();
-
-    // clear_nvs_all();
 
     restore_state();
 
@@ -258,7 +220,6 @@ void app_main(void) {
 
     xTaskCreate(hddpc_task, "hddpc_task", 2048, NULL, 5, NULL);
     xTaskCreate(rst_hid_task, "rst_hid_task", 4096, NULL, 6, NULL);
-    // xTaskCreate(usb_task, "usb_task", 4096, NULL, 10, NULL);
 
     gpio_install_isr_service(ESP_INTR_FLAG_DEFAULT);
 
