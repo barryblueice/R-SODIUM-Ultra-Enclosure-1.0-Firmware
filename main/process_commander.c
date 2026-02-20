@@ -19,6 +19,8 @@ static const char *TAG = "R-SODIUM Controller";
 #define REPORT_SIZE 64
 #define HMAC_KEY    "a0HyIvVM6A6Z7dTPYrAk8s3Mpouh"
 
+const char *current_version = "v1.4.3";
+
 RTC_DATA_ATTR int dfu_flag = 0;
 
 void enter_dfu_mode(void)
@@ -196,7 +198,6 @@ void process_command(uint8_t cmd, const uint8_t *data) {
             break;
         case 0xFA:
             // version_return
-            const char *current_version = "v1.4.2";
             send_hid_response(data[0], (const uint8_t *)current_version, strlen(current_version));
             break;
         default:
