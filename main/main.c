@@ -7,6 +7,8 @@
 #include "esp_log.h"
 #include "driver/gpio.h"
 #include "tinyusb.h"
+#include "tinyusb_default_config.h"
+#include "tusb.h"
 #include "mbedtls/md.h"
 #include "class/hid/hid_device.h"
 #include <unistd.h>
@@ -116,31 +118,61 @@ void tud_resume_cb(void) {
 
 }
 
-void tud_mount_cb(void) {
-
-    restore_state();
-    ESP_LOGW(TAG, "Host mounted, restore GPIO state");
-    start_hid_alive_task();
-    usb_mounted = true;
-
-}
-
-void tud_umount_cb(void) {
-    uint8_t suspend_enable = get_nvs_state(0x00, "ususp_en");
-    if (suspend_enable != 0x00) {
-        vTaskDelay(pdMS_TO_TICKS(5000));
-        gpio_set_level(GPIO_NUM_33,0);
-        gpio_set_level(GPIO_NUM_34,0);
-        gpio_set_level(GPIO_NUM_35,0);
-        gpio_set_level(GPIO_NUM_38,0);
-        gpio_set_level(GPIO_NUM_45,0);
-        ESP_LOGW(TAG, "Host unmounted, disable all GPIO");
-        esp_sleep_enable_timer_wakeup(10000000);
-        esp_light_sleep_start();
-        stop_hid_alive_task();
+static void device_event_handler(tinyusb_event_t *event, void *arg)
+  {
+    switch (event->id) {
+    case TINYUSB_EVENT_ATTACHED:
+        restore_state();
+        ESP_LOGW(TAG, "Host mounted, restore GPIO state");
+        start_hid_alive_task();
+        usb_mounted = true;
+        break;
+    case TINYUSB_EVENT_DETACHED:
+        uint8_t suspend_enable = get_nvs_state(0x00, "ususp_en");
+        if (suspend_enable != 0x00) {
+            vTaskDelay(pdMS_TO_TICKS(5000));
+            gpio_set_level(GPIO_NUM_33,0);
+            gpio_set_level(GPIO_NUM_34,0);
+            gpio_set_level(GPIO_NUM_35,0);
+            gpio_set_level(GPIO_NUM_38,0);
+            gpio_set_level(GPIO_NUM_45,0);
+            ESP_LOGW(TAG, "Host unmounted, disable all GPIO");
+            esp_sleep_enable_timer_wakeup(10000000);
+            esp_light_sleep_start();
+            stop_hid_alive_task();
+        }
+        usb_mounted = false;
+        break;
+    default:
+        break;
     }
-    usb_mounted = false;
-}
+  }
+
+// void tud_mount_cb(void) {
+
+//     restore_state();
+//     ESP_LOGW(TAG, "Host mounted, restore GPIO state");
+//     start_hid_alive_task();
+//     usb_mounted = true;
+
+// }
+
+// void tud_umount_cb(void) {
+//     uint8_t suspend_enable = get_nvs_state(0x00, "ususp_en");
+//     if (suspend_enable != 0x00) {
+//         vTaskDelay(pdMS_TO_TICKS(5000));
+//         gpio_set_level(GPIO_NUM_33,0);
+//         gpio_set_level(GPIO_NUM_34,0);
+//         gpio_set_level(GPIO_NUM_35,0);
+//         gpio_set_level(GPIO_NUM_38,0);
+//         gpio_set_level(GPIO_NUM_45,0);
+//         ESP_LOGW(TAG, "Host unmounted, disable all GPIO");
+//         esp_sleep_enable_timer_wakeup(10000000);
+//         esp_light_sleep_start();
+//         stop_hid_alive_task();
+//     }
+//     usb_mounted = false;
+// }
 
 void tud_reset_cb(void)
 {
@@ -199,15 +231,24 @@ void app_main(void) {
 
     restore_state();
 
-    const tinyusb_config_t tusb_cfg = {
-        .device_descriptor = &hid_device_descriptor,
-        .string_descriptor = hid_string_descriptor,
-        .string_descriptor_count = sizeof(hid_string_descriptor) / sizeof(hid_string_descriptor[0]),
-        .configuration_descriptor = hid_configuration_descriptor,
-        .external_phy = false,
-        .self_powered = true,
-        .vbus_monitor_io = GPIO_NUM_9,
-    };
+    // const tinyusb_config_t tusb_cfg = {
+    //     .device_descriptor = &hid_device_descriptor,
+    //     .string_descriptor = hid_string_descriptor,
+    //     .string_descriptor_count = sizeof(hid_string_descriptor) / sizeof(hid_string_descriptor[0]),
+    //     .configuration_descriptor = hid_configuration_descriptor,
+    //     .external_phy = false,
+    //     .self_powered = true,
+    //     .vbus_monitor_io = GPIO_NUM_9,
+    // };
+
+    tinyusb_config_t tusb_cfg = TINYUSB_DEFAULT_CONFIG(device_event_handler);
+    tusb_cfg.descriptor.device = &hid_device_descriptor;
+    tusb_cfg.descriptor.string = hid_string_descriptor;
+    tusb_cfg.descriptor.string_count = sizeof(hid_string_descriptor)/sizeof(hid_string_descriptor[0]);
+    tusb_cfg.descriptor.full_speed_config = hid_configuration_descriptor;
+    tusb_cfg.phy.self_powered = true;
+    tusb_cfg.phy.vbus_monitor_io = GPIO_NUM_9;
+
     ESP_ERROR_CHECK(tinyusb_driver_install(&tusb_cfg));
     ESP_LOGI(TAG, "Controller initialized");
 
