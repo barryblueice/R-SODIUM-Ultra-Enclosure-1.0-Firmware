@@ -3,7 +3,7 @@
 #include "nvs_handle.h"
 #include "esp_log.h"
 #include "driver/gpio.h"
-#include "mbedtls/md.h"
+#include <psa/crypto.h>
 #include <string.h>
 #include "class/hid/hid_device.h"
 #include "esp_system.h"
@@ -35,18 +35,21 @@ void enter_dfu_mode(void)
 void send_hid_response(uint8_t command, const uint8_t *payload, size_t payload_len) {
     uint8_t report[REPORT_SIZE] = {0};
     uint8_t mac[32];
+    size_t mac_len;
 
     report[0] = command;
     memcpy(report + 1, payload, payload_len > 31 ? 31 : payload_len);
 
-    mbedtls_md_context_t ctx;
-    const mbedtls_md_info_t *info = mbedtls_md_info_from_type(MBEDTLS_MD_SHA256);
-    mbedtls_md_init(&ctx);
-    mbedtls_md_setup(&ctx, info, 1);
-    mbedtls_md_hmac_starts(&ctx, (const unsigned char *)HMAC_KEY, strlen(HMAC_KEY));
-    mbedtls_md_hmac_update(&ctx, report, 32); // command + payload(31)
-    mbedtls_md_hmac_finish(&ctx, mac);
-    mbedtls_md_free(&ctx);
+    psa_key_attributes_t attributes = PSA_KEY_ATTRIBUTES_INIT;
+    psa_set_key_usage_flags(&attributes, PSA_KEY_USAGE_SIGN_MESSAGE);
+    psa_set_key_algorithm(&attributes, PSA_ALG_HMAC(PSA_ALG_SHA_256));
+    psa_set_key_type(&attributes, PSA_KEY_TYPE_HMAC);
+
+    psa_key_id_t hmac_key_id;
+    psa_import_key(&attributes, (const uint8_t *)HMAC_KEY, strlen(HMAC_KEY), &hmac_key_id);
+    psa_mac_compute(hmac_key_id, PSA_ALG_HMAC(PSA_ALG_SHA_256),
+                    report, 32, mac, sizeof(mac), &mac_len);
+    psa_destroy_key(hmac_key_id);
 
     memcpy(report + 32, mac, 32);
     tud_hid_report(0, report, REPORT_SIZE);
@@ -116,7 +119,7 @@ void process_command(uint8_t cmd, const uint8_t *data) {
             break;
         case 0x04:
             // 查询NVS存储的硬盘盒状态
-            uint8_t enclosure_status = enclosure_mode_selected(data[2]);
+            uint8_t enclosure_status = enclosure_mode_selected();
             send_hid_response(data[0], &enclosure_status, 1);
             break;
         case 0x05:

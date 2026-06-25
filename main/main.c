@@ -9,7 +9,7 @@
 #include "tinyusb.h"
 #include "tinyusb_default_config.h"
 #include "tusb.h"
-#include "mbedtls/md.h"
+#include <psa/crypto.h>
 #include "class/hid/hid_device.h"
 #include <unistd.h>
 #include "esp_sleep.h"
@@ -21,7 +21,8 @@
 #include "alive_hid.h"
 
 static volatile bool usb_reenum_req = false;
-static volatile bool usb_mounted = false; 
+static volatile bool usb_mounted = false;
+static volatile bool usb_init_ready = false;
 
 static const char *TAG = "R-SODIUM Controller";
 #define REPORT_SIZE 64
@@ -91,14 +92,18 @@ void tud_hid_set_report_cb(uint8_t instance,
     const uint8_t *payload = buffer + 1;
     const uint8_t *recv_hmac = buffer + 32;
     uint8_t calc_hmac[32];
-    mbedtls_md_context_t ctx;
-    const mbedtls_md_info_t *info = mbedtls_md_info_from_type(MBEDTLS_MD_SHA256);
-    mbedtls_md_init(&ctx);
-    mbedtls_md_setup(&ctx, info, 1);
-    mbedtls_md_hmac_starts(&ctx, (const unsigned char *)HMAC_KEY, strlen(HMAC_KEY));
-    mbedtls_md_hmac_update(&ctx, buffer, 32);
-    mbedtls_md_hmac_finish(&ctx, calc_hmac);
-    mbedtls_md_free(&ctx);
+    size_t calc_hmac_len;
+
+    psa_key_attributes_t attributes = PSA_KEY_ATTRIBUTES_INIT;
+    psa_set_key_usage_flags(&attributes, PSA_KEY_USAGE_SIGN_MESSAGE);
+    psa_set_key_algorithm(&attributes, PSA_ALG_HMAC(PSA_ALG_SHA_256));
+    psa_set_key_type(&attributes, PSA_KEY_TYPE_HMAC);
+
+    psa_key_id_t hmac_key_id;
+    psa_import_key(&attributes, (const uint8_t *)HMAC_KEY, strlen(HMAC_KEY), &hmac_key_id);
+    psa_mac_compute(hmac_key_id, PSA_ALG_HMAC(PSA_ALG_SHA_256),
+                    buffer, 32, calc_hmac, sizeof(calc_hmac), &calc_hmac_len);
+    psa_destroy_key(hmac_key_id);
 
     if (memcmp(calc_hmac, recv_hmac, 32) != 0) {
         ESP_LOGW(TAG, "HMAC mismatch");
@@ -118,6 +123,20 @@ void tud_resume_cb(void) {
 
 }
 
+static void detached_sleep_task(void *param)
+{
+    vTaskDelay(pdMS_TO_TICKS(5000));
+    gpio_set_level(GPIO_NUM_33, 0);
+    gpio_set_level(GPIO_NUM_34, 0);
+    gpio_set_level(GPIO_NUM_35, 0);
+    gpio_set_level(GPIO_NUM_38, 0);
+    gpio_set_level(GPIO_NUM_45, 0);
+    ESP_LOGW(TAG, "Host unmounted, disable all GPIO");
+    esp_sleep_enable_timer_wakeup(10000000);
+    esp_light_sleep_start();
+    vTaskDelete(NULL);
+}
+
 static void device_event_handler(tinyusb_event_t *event, void *arg)
   {
     switch (event->id) {
@@ -128,20 +147,12 @@ static void device_event_handler(tinyusb_event_t *event, void *arg)
         usb_mounted = true;
         break;
     case TINYUSB_EVENT_DETACHED:
+        stop_hid_alive_task();
+        usb_mounted = false;
         uint8_t suspend_enable = get_nvs_state(0x00, "ususp_en");
         if (suspend_enable != 0x00) {
-            vTaskDelay(pdMS_TO_TICKS(5000));
-            gpio_set_level(GPIO_NUM_33,0);
-            gpio_set_level(GPIO_NUM_34,0);
-            gpio_set_level(GPIO_NUM_35,0);
-            gpio_set_level(GPIO_NUM_38,0);
-            gpio_set_level(GPIO_NUM_45,0);
-            ESP_LOGW(TAG, "Host unmounted, disable all GPIO");
-            esp_sleep_enable_timer_wakeup(10000000);
-            esp_light_sleep_start();
-            stop_hid_alive_task();
+            xTaskCreate(detached_sleep_task, "detached_sleep", 2048, NULL, 3, NULL);
         }
-        usb_mounted = false;
         break;
     default:
         break;
@@ -184,9 +195,14 @@ void tud_reset_cb(void)
 
 void rst_hid_task(void *param)
 {
+    while (!usb_init_ready) {
+        vTaskDelay(pdMS_TO_TICKS(50));
+    }
+    vTaskDelay(pdMS_TO_TICKS(500));
+
     ESP_LOGI(TAG, "Waiting for USB to mount...");
 
-    int timeout_ms = 3000;
+    int timeout_ms = 8000;
     int elapsed = 0;
     const int step = 100;
 
@@ -201,9 +217,12 @@ void rst_hid_task(void *param)
     }
 
     ESP_LOGW(TAG, "USB not mounted in %d ms, forcing re-enumeration...", timeout_ms);
+    stop_hid_alive_task();
     tud_disconnect();
     vTaskDelay(pdMS_TO_TICKS(1000));
     tud_connect();
+    vTaskDelay(pdMS_TO_TICKS(500));
+    start_hid_alive_task();
     ESP_LOGI(TAG, "USB re-enumeration complete");
 
     vTaskDelete(NULL);
@@ -218,6 +237,8 @@ void usb_task(void *param) {
 
 void app_main(void) {
     ESP_LOGI(TAG, "R-SODIUM Ultra SSD Enclosure Controller Start");
+
+    psa_crypto_init();
 
     init_nvs();
     gpio_initialized();
@@ -270,6 +291,9 @@ void app_main(void) {
     gpio_register_callback(GPIO_NUM_34, SATA1_callback);
     gpio_register_callback(GPIO_NUM_38, SATA2_callback);
     gpio_register_callback(GPIO_NUM_1, bus_power_callback);
-    
+
     gpio_set_level(GPIO_NUM_14, 1);
+
+    usb_init_ready = true;
+    ESP_LOGI(TAG, "USB init ready, rst_hid_task armed");
 }
