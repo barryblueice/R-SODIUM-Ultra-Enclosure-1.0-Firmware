@@ -19,7 +19,7 @@ static const char *TAG = "R-SODIUM Controller";
 #define REPORT_SIZE 64
 #define HMAC_KEY    "a0HyIvVM6A6Z7dTPYrAk8s3Mpouh"
 
-const char *current_version = "v1.4.3";
+const char *current_version = "v1.4.4";
 
 RTC_DATA_ATTR int dfu_flag = 0;
 
