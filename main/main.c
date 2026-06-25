@@ -204,7 +204,7 @@ void rst_hid_task(void *param)
 
     int timeout_ms = 8000;
     int elapsed = 0;
-    const int step = 100;
+    const int step = 200;
 
     while (elapsed < timeout_ms) {
         if (tud_mounted()) {
@@ -212,14 +212,22 @@ void rst_hid_task(void *param)
             vTaskDelete(NULL);
             return;
         }
+        // ESP32-S2 known issue: device electrically connected but not enumerated.
+        // Detect this "stuck" state early and force recovery.
+        if (elapsed > 3000 && tud_connected() && !tud_mounted()) {
+            ESP_LOGW(TAG, "USB connected but not enumerated (stuck), forcing re-enum early...");
+            break;
+        }
         vTaskDelay(pdMS_TO_TICKS(step));
         elapsed += step;
     }
 
-    ESP_LOGW(TAG, "USB not mounted in %d ms, forcing re-enumeration...", timeout_ms);
+    ESP_LOGW(TAG, "USB not mounted, forcing re-enumeration...");
     stop_hid_alive_task();
     tud_disconnect();
-    vTaskDelay(pdMS_TO_TICKS(1000));
+    // Two-phase delay: let host detect disconnect, then settle before reconnect
+    vTaskDelay(pdMS_TO_TICKS(500));
+    vTaskDelay(pdMS_TO_TICKS(800));
     tud_connect();
     vTaskDelay(pdMS_TO_TICKS(500));
     start_hid_alive_task();
@@ -273,8 +281,14 @@ void app_main(void) {
     ESP_ERROR_CHECK(tinyusb_driver_install(&tusb_cfg));
     ESP_LOGI(TAG, "Controller initialized");
 
+    // Force clean USB state: ROM bootloader may leave D+ pull-up enabled,
+    // causing "port occupied but no device" on quick power-cycle. Explicit
+    // disconnect+reconnect ensures clean enumeration on ESP32-S2.
+    vTaskDelay(pdMS_TO_TICKS(100));
+    tud_disconnect();
     vTaskDelay(pdMS_TO_TICKS(300));
     tud_connect();
+    vTaskDelay(pdMS_TO_TICKS(200));
 
     start_hid_alive_task();
 
